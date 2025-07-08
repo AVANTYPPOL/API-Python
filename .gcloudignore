@@ -1,0 +1,96 @@
+# ================================
+# RIDESHARE PRICING API - Cloud Deployment Exclusions
+# ================================
+
+# ================
+# EXCLUDE ENTIRE FOLDERS
+# ================
+Dynamic Pricing/
+training/
+tests/
+docs/
+archive/
+backup/
+temp/
+
+# ================
+# DEVELOPMENT FILES  
+# ================
+app_simple.py
+app_fixed.py
+app_hybrid_only.py
+*.md
+!README.md
+
+# ================
+# PYTHON CACHE
+# ================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+
+# ================
+# ENVIRONMENTS
+# ================
+.env
+.venv
+venv/
+ENV/
+
+# ================
+# IDE
+# ================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ================
+# OS FILES
+# ================
+.DS_Store
+Thumbs.db
+
+# ================
+# LOGS
+# ================
+*.log
+logs/
+
+# ================
+# LARGE FILES
+# ================
+*.csv
+*.parquet
+*.db
+
+# ================
+# DOCKER/GIT
+# ================
+.git/
+.gitignore
+.dockerignore
+Dockerfile.dev
+docker-compose.dev.yml
+
+# ================
+# ANALYSIS/REPORTS
+# ================
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# ================
+# KEEP ESSENTIAL PRODUCTION FILES
+# ================
+!app.py
+!hybrid_realtime_api.py
+!hybrid_uber_model.pkl
+!requirements.txt
+!Dockerfile
+!gunicorn.conf.py
+!templates/ 
