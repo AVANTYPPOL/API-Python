@@ -173,28 +173,14 @@ def predict():
                     weather_condition=weather_condition
                 )
                 
-                # Get price for requested service
-                if service_type.lower() in ['uberx', 'uber_x']:
-                    service_name = 'UberX'
-                elif service_type.lower() in ['uberxl', 'uber_xl']:
-                    service_name = 'UberXL'
-                elif service_type.lower() in ['uber_premier', 'uberpremier']:
-                    service_name = 'Uber Premier'
-                elif service_type.lower() in ['premier_suv', 'premiersuv']:
-                    service_name = 'Premier SUV'
-                else:
-                    service_name = 'UberX'  # Default
-                
-                final_price = predictions.get(service_name, predictions.get('UberX', 10.0))
-                
+                # Return all service predictions
                 return jsonify({
                     'success': True,
-                    'prediction': {service_name: round(final_price, 2)},
+                    'predictions': predictions,  # This already contains all 4 services
                     'request_details': {
                         'distance_miles': round(distance_km * 0.621371, 1),
                         'distance_km': round(distance_km, 1),
-                        'surge_multiplier': surge_multiplier,
-                        'service_type': service_name
+                        'surge_multiplier': surge_multiplier
                     },
                     'model_info': {
                         'model_type': model_info.get('model_type', 'ultimate_miami_model'),
@@ -204,11 +190,16 @@ def predict():
                 
             except Exception as e:
                 logger.error(f"Model prediction error: {e}")
-                # Fallback to simple pricing
+                # Fallback to simple pricing with all services
                 base_price = 2.50 + (distance_km * 1.65 * surge_multiplier)
                 return jsonify({
                     'success': True,
-                    'prediction': {service_type: round(base_price, 2)},
+                    'predictions': {
+                        'UberX': round(base_price, 2),
+                        'UberXL': round(base_price * 1.55, 2),
+                        'Uber Premier': round(base_price * 2.0, 2),
+                        'Premier SUV': round(base_price * 2.64, 2)
+                    },
                     'request_details': {
                         'distance_miles': round(distance_km * 0.621371, 1),
                         'distance_km': round(distance_km, 1),
@@ -217,11 +208,16 @@ def predict():
                     'note': 'Using fallback pricing due to model error'
                 })
         else:
-            # Fallback pricing
+            # Fallback pricing with all services
             base_price = 2.50 + (distance_km * 1.65 * surge_multiplier)
             return jsonify({
                 'success': True,
-                'prediction': {service_type: round(base_price, 2)},
+                'predictions': {
+                    'UberX': round(base_price, 2),
+                    'UberXL': round(base_price * 1.55, 2),
+                    'Uber Premier': round(base_price * 2.0, 2),
+                    'Premier SUV': round(base_price * 2.64, 2)
+                },
                 'request_details': {
                     'distance_miles': round(distance_km * 0.621371, 1),
                     'distance_km': round(distance_km, 1),
