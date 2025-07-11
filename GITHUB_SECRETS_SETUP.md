@@ -239,4 +239,4 @@ Once setup is complete:
 
 ---
 
-**🎉 Congratulations! Your CI/CD pipeline is now set up for automatic deployment to Google Cloud Run.**
+**🎉 Congratulations! Your CI/CD pipeline is now set up for automatic deployment to Google Cloud Run.**Test deployment with fixed GCP_SA_KEY
