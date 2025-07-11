@@ -4,7 +4,9 @@
       "Bash(python:*)",
       "Bash(git config:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(cat:*)",
+      "Bash(git remote set-url:*)"
     ],
     "deny": []
   }
