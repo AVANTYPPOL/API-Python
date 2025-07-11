@@ -1,36 +1,176 @@
-name: Deploy to Cloud Run
+name: Deploy to Google Cloud Run
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, master ]
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  SERVICE_NAME: rideshare-pricing-api
+  REGION: us-central1
 
 jobs:
   deploy:
+    name: Deploy to Cloud Run
     runs-on: ubuntu-latest
+    
+    # Only run on push to main/master, not on PRs
+    if: github.event_name == 'push'
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
-    
-    - name: Setup Google Cloud CLI
-      uses: google-github-actions/setup-gcloud@v1
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
       with:
-        project_id: ${{ secrets.GCP_PROJECT_ID }}
-        service_account_key: ${{ secrets.GCP_SA_KEY }}
-        export_default_credentials: true
-    
-    - name: Configure Docker for GCP
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run basic tests
+      run: |
+        # Test model loading
+        python -c "
+        from ultimate_miami_model import UltimateMiamiModel
+        model = UltimateMiamiModel()
+        print('✅ Model class loads successfully')
+        
+        # Test basic prediction (without trained model)
+        predictions = model.predict_all_services(
+            distance_km=5.0,
+            pickup_lat=25.7617,
+            pickup_lng=-80.1918,
+            dropoff_lat=25.7907,
+            dropoff_lng=-80.1300
+        )
+        assert 'UberX' in predictions
+        print('✅ Basic prediction works')
+        print(f'Sample prediction: {predictions}')
+        "
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+
+    - name: Configure Docker for GCR
       run: gcloud auth configure-docker
-    
+
     - name: Build and Deploy to Cloud Run
       run: |
-        gcloud run deploy rideshare-pricing-api \
+        gcloud run deploy $SERVICE_NAME \
           --source . \
-          --region us-central1 \
           --platform managed \
+          --region $REGION \
           --allow-unauthenticated \
-          --memory 1Gi \
-          --cpu 1 \
-          --max-instances 100 
+          --set-env-vars="GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }},WEATHER_API_KEY=${{ secrets.WEATHER_API_KEY }}" \
+          --memory 2Gi \
+          --cpu 2 \
+          --timeout 300 \
+          --max-instances 10 \
+          --quiet
+
+    - name: Get Service URL
+      run: |
+        SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --platform managed --region $REGION --format 'value(status.url)')
+        echo "Service deployed to: $SERVICE_URL"
+        echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_ENV
+
+    - name: Test Deployment
+      run: |
+        echo "Testing deployed service..."
+        
+        # Wait for service to be ready
+        sleep 30
+        
+        # Test health endpoint
+        curl -f "$SERVICE_URL/health" || (echo "Health check failed" && exit 1)
+        echo "✅ Health check passed"
+        
+        # Test prediction endpoint
+        curl -f -X POST "$SERVICE_URL/predict" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "pickup_latitude": 25.7617,
+            "pickup_longitude": -80.1918,
+            "dropoff_latitude": 25.7907,
+            "dropoff_longitude": -80.1300,
+            "service_type": "UberX"
+          }' || (echo "Prediction test failed" && exit 1)
+        echo "✅ Prediction test passed"
+
+    - name: Create deployment summary
+      run: |
+        echo "## 🚀 Deployment Successful" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Service URL:** $SERVICE_URL" >> $GITHUB_STEP_SUMMARY
+        echo "**Region:** $REGION" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Quick Test" >> $GITHUB_STEP_SUMMARY
+        echo '```bash' >> $GITHUB_STEP_SUMMARY
+        echo "curl $SERVICE_URL/health" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+
+  test-only:
+    name: Run Tests (PR)
+    runs-on: ubuntu-latest
+    
+    # Only run on PRs, not on push to main
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run tests
+      run: |
+        # Test model loading
+        python -c "
+        from ultimate_miami_model import UltimateMiamiModel
+        model = UltimateMiamiModel()
+        print('✅ Model class loads successfully')
+        
+        # Test basic prediction
+        predictions = model.predict_all_services(
+            distance_km=5.0,
+            pickup_lat=25.7617,
+            pickup_lng=-80.1918,
+            dropoff_lat=25.7907,
+            dropoff_lng=-80.1300
+        )
+        assert 'UberX' in predictions
+        print('✅ Basic prediction works')
+        "
+
+    - name: Validate app structure
+      run: |
+        python -c "
+        import app
+        print('✅ App module loads successfully')
+        "
+        
+        # Check required files exist
+        test -f ultimate_miami_model.py || (echo '❌ Model file missing' && exit 1)
+        test -f requirements.txt || (echo '❌ Requirements file missing' && exit 1)
+        test -f Dockerfile || (echo '❌ Dockerfile missing' && exit 1)
+        echo '✅ All required files present'
