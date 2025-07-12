@@ -20,15 +20,14 @@ A high-performance machine learning API for rideshare price prediction using the
 # Health check
 curl https://rideshare-pricing-api-721577626239.us-central1.run.app/health
 
-# Get price prediction
+# Get price prediction for all services
 curl -X POST https://rideshare-pricing-api-721577626239.us-central1.run.app/predict \
   -H "Content-Type: application/json" \
   -d '{
     "pickup_latitude": 25.7617,
     "pickup_longitude": -80.1918,
     "dropoff_latitude": 25.7907,
-    "dropoff_longitude": -80.1300,
-    "service_type": "UberX"
+    "dropoff_longitude": -80.1300
   }'
 ```
 
@@ -62,8 +61,7 @@ Get price prediction for a single ride.
   "pickup_latitude": 25.7617,
   "pickup_longitude": -80.1918,
   "dropoff_latitude": 25.7907,
-  "dropoff_longitude": -80.1300,
-  "service_type": "UberX"
+  "dropoff_longitude": -80.1300
 }
 ```
 
@@ -71,12 +69,16 @@ Get price prediction for a single ride.
 ```json
 {
   "success": true,
-  "prediction": {"UberX": 12.45},
+  "predictions": {
+    "UberX": 12.45,
+    "UberXL": 19.30,
+    "Uber Premier": 24.90,
+    "Premier SUV": 32.87
+  },
   "request_details": {
     "distance_miles": 3.2,
     "distance_km": 5.1,
-    "surge_multiplier": 1.0,
-    "service_type": "UberX"
+    "surge_multiplier": 1.0
   },
   "model_info": {
     "model_type": "ultimate_miami_model",
@@ -203,8 +205,7 @@ const getPriceEstimate = async (pickup, dropoff) => {
       pickup_latitude: pickup.lat,
       pickup_longitude: pickup.lng,
       dropoff_latitude: dropoff.lat,
-      dropoff_longitude: dropoff.lng,
-      service_type: 'UberX'
+      dropoff_longitude: dropoff.lng
     })
   });
   
@@ -223,8 +224,7 @@ def get_price_estimate(pickup_lat, pickup_lng, dropoff_lat, dropoff_lng):
         "pickup_latitude": pickup_lat,
         "pickup_longitude": pickup_lng,
         "dropoff_latitude": dropoff_lat,
-        "dropoff_longitude": dropoff_lng,
-        "service_type": "UberX"
+        "dropoff_longitude": dropoff_lng
     }
     
     response = requests.post(url, json=data)
@@ -240,8 +240,7 @@ func getPriceEstimate(pickup: CLLocationCoordinate2D, dropoff: CLLocationCoordin
         pickup_latitude: pickup.latitude,
         pickup_longitude: pickup.longitude,
         dropoff_latitude: dropoff.latitude,
-        dropoff_longitude: dropoff.longitude,
-        service_type: "UberX"
+        dropoff_longitude: dropoff.longitude
     )
     
     var request = URLRequest(url: url)

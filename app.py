@@ -146,7 +146,6 @@ def predict():
         distance_km = haversine_distance(pickup_lat, pickup_lng, dropoff_lat, dropoff_lng)
         
         # Optional parameters
-        service_type = data.get('service_type', 'UberX')
         surge_multiplier = float(data.get('surge_multiplier', 1.0))
         
         # Time-based parameters
@@ -173,10 +172,10 @@ def predict():
                     weather_condition=weather_condition
                 )
                 
-                # Return all service predictions
+                # Always return all service predictions
                 return jsonify({
                     'success': True,
-                    'predictions': predictions,  # This already contains all 4 services
+                    'predictions': predictions,  # All 4 services
                     'request_details': {
                         'distance_miles': round(distance_km * 0.621371, 1),
                         'distance_km': round(distance_km, 1),
@@ -190,8 +189,10 @@ def predict():
                 
             except Exception as e:
                 logger.error(f"Model prediction error: {e}")
-                # Fallback to simple pricing with all services
+                # Fallback to simple pricing
                 base_price = 2.50 + (distance_km * 1.65 * surge_multiplier)
+                
+                # Always return all services with fallback pricing
                 return jsonify({
                     'success': True,
                     'predictions': {
@@ -208,8 +209,10 @@ def predict():
                     'note': 'Using fallback pricing due to model error'
                 })
         else:
-            # Fallback pricing with all services
+            # Fallback pricing when model not loaded
             base_price = 2.50 + (distance_km * 1.65 * surge_multiplier)
+            
+            # Always return all services
             return jsonify({
                 'success': True,
                 'predictions': {
