@@ -29,64 +29,69 @@ def haversine_distance(lat1, lng1, lat2, lng2):
     
     return distance
 
-def load_ultimate_miami_model():
-    """Load the Ultimate Miami ML model"""
+def load_xgboost_model():
+    """Load the XGBoost ML model"""
     global pricing_model, model_info
     
     try:
-        logger.info("🚀 Loading Ultimate Miami Uber Price Prediction Model...")
+        logger.info("🚀 Loading XGBoost Miami Uber Price Prediction Model...")
         logger.info("=" * 70)
-        logger.info("🔄 ULTIMATE MIAMI UBER PRICE PREDICTION MODEL")
+        logger.info("🔄 XGBOOST MIAMI UBER PRICE PREDICTION MODEL")
         logger.info("=" * 70)
-        logger.info("🏖️  Miami-First Approach (Real Scraped Data)")
-        logger.info("🗽 NYC Enhancement (Distance Learning)")
+        logger.info("🏖️  Miami-Specific Features (Airport, Beach, Downtown)")
+        logger.info("📊 High Accuracy: R² = 0.8822 (88.22%)")
         logger.info("🚗 Multi-Service Built-in (All 4 Types)")
+        logger.info("💰 RMSE: $13.31")
         logger.info("=" * 70)
         
-        # Import and initialize the Ultimate Miami model
-        from ultimate_miami_model import UltimateMiamiModel
-        logger.info("✅ Successfully imported UltimateMiamiModel")
+        # Import and initialize the XGBoost model
+        from xgboost_pricing_api import XGBoostPricingAPI
+        logger.info("✅ Successfully imported XGBoostPricingAPI")
         
-        pricing_model = UltimateMiamiModel()
+        pricing_model = XGBoostPricingAPI('xgboost_miami_model.pkl')
         
-        # Try to load pre-trained model, otherwise use fallback
-        model_loaded = False
-        try:
-            model_loaded = pricing_model.load_model('ultimate_miami_model.pkl')
-        except:
-            logger.info("⚠️  Pre-trained model not found, will use fallback pricing")
-        
-        if pricing_model is not None:
-            logger.info("✅ Ultimate Miami model initialized successfully")
-            logger.info("🗺️  Google Maps API: ❌ Not configured (using Haversine distance)")
-            logger.info("🌤️  Weather API: ❌ Not configured (using clear weather default)")
-            logger.info(f"🤖 ML Model: {'Trained model loaded' if model_loaded else 'Fallback pricing active'}")
+        if pricing_model is not None and pricing_model.is_loaded:
+            logger.info("✅ XGBoost model loaded successfully")
+            
+            # Check API status
+            gmaps_status = "✅ Configured" if pricing_model.gmaps else "❌ Not configured (using Haversine distance)"
+            weather_status = "✅ Configured" if pricing_model.weather_api_key else "❌ Not configured (using clear weather default)"
+            
+            logger.info(f"🗺️  Google Maps API: {gmaps_status}")
+            logger.info(f"🌤️  Weather API: {weather_status}")
+            logger.info("🤖 ML Model: Trained XGBoost model loaded")
+            logger.info("📊 Training Data: 28,531 Miami rides")
             
             model_info = {
-                'model_type': 'ultimate_miami_model',
-                'accuracy': '72.86%',
-                'description': 'Miami-first approach with NYC enhancement',
-                'features': ['distance', 'location', 'time_patterns', 'surge_multiplier', 'miami_specifics'],
+                'model_type': 'xgboost_miami_model',
+                'accuracy': '88.22%',
+                'r2_score': 0.8822,
+                'rmse': '$13.31',
+                'description': 'XGBoost model with Miami-specific feature engineering',
+                'features': ['distance', 'location', 'time_patterns', 'traffic_level', 'weather', 
+                           'miami_airports', 'miami_beaches', 'miami_downtown'],
                 'services': ['UberX', 'UberXL', 'Uber Premier', 'Premier SUV'],
-                'competitive_pricing': 'Optimized for Miami market',
-                'model_location': 'ultimate_miami_model.pkl'
+                'training_samples': 28531,
+                'model_location': 'xgboost_miami_model.pkl'
             }
             
             logger.info("=" * 70)
-            logger.info("✅ ULTIMATE MIAMI MODEL READY FOR PRODUCTION")
+            logger.info("✅ XGBOOST MODEL READY FOR PRODUCTION")
             logger.info("=" * 70)
+        else:
+            logger.warning("⚠️  XGBoost model not loaded properly, using fallback pricing")
         
         return True
         
     except Exception as e:
-        logger.error(f"❌ Error loading Ultimate Miami model: {e}")
+        logger.error(f"❌ Error loading XGBoost model: {e}")
         logger.error(f"Traceback: {traceback.format_exc()}")
         return False
 
 # Load model on startup
 logger.info("🚀 Initializing Rideshare Pricing API...")
-if not load_ultimate_miami_model():
-    logger.warning("⚠️  Ultimate Miami model failed to load, using fallback algorithm")
+if not load_xgboost_model():
+    logger.warning("⚠️  XGBoost model failed to load, using fallback algorithm")
     logger.info("✅ Fallback pricing algorithm is production-ready")
 
 @app.route('/health', methods=['GET'])
@@ -97,7 +102,7 @@ def health_check():
         'version': '1.0.0',
         'model_loaded': pricing_model is not None,
         'model_info': model_info,
-        'api_name': 'Ultimate Miami Pricing API'
+        'api_name': 'XGBoost Miami Pricing API'
     })
 
 @app.route('/model/info', methods=['GET'])
@@ -145,31 +150,14 @@ def predict():
         # Calculate distance
         distance_km = haversine_distance(pickup_lat, pickup_lng, dropoff_lat, dropoff_lng)
         
-        # Optional parameters
-        surge_multiplier = float(data.get('surge_multiplier', 1.0))
-        
-        # Time-based parameters
-        now = datetime.now()
-        current_hour = now.hour
-        current_day = now.weekday()
-        
-        traffic_level = data.get('traffic_level', 'moderate')
-        weather_condition = data.get('weather_condition', 'clear')
-        
         if pricing_model:
-            # Get prediction from Ultimate Miami model
+            # Get prediction from XGBoost model - only coordinates needed!
             try:
                 predictions = pricing_model.predict_all_services(
-                    distance_km=distance_km,
                     pickup_lat=pickup_lat,
                     pickup_lng=pickup_lng,
                     dropoff_lat=dropoff_lat,
-                    dropoff_lng=dropoff_lng,
-                    hour_of_day=current_hour,
-                    day_of_week=current_day,
-                    surge_multiplier=surge_multiplier,
-                    traffic_level=traffic_level,
-                    weather_condition=weather_condition
+                    dropoff_lng=dropoff_lng
                 )
                 
                 # Always return all service predictions
@@ -178,8 +166,7 @@ def predict():
                     'predictions': predictions,  # All 4 services
                     'request_details': {
                         'distance_miles': round(distance_km * 0.621371, 1),
-                        'distance_km': round(distance_km, 1),
-                        'surge_multiplier': surge_multiplier
+                        'distance_km': round(distance_km, 1)
                     },
                     'model_info': {
                         'model_type': model_info.get('model_type', 'ultimate_miami_model'),
@@ -190,7 +177,7 @@ def predict():
             except Exception as e:
                 logger.error(f"Model prediction error: {e}")
                 # Fallback to simple pricing
-                base_price = 2.50 + (distance_km * 1.65 * surge_multiplier)
+                base_price = 2.50 + (distance_km * 1.65)
                 
                 # Always return all services with fallback pricing
                 return jsonify({
@@ -203,14 +190,13 @@ def predict():
                     },
                     'request_details': {
                         'distance_miles': round(distance_km * 0.621371, 1),
-                        'distance_km': round(distance_km, 1),
-                        'surge_multiplier': surge_multiplier
+                        'distance_km': round(distance_km, 1)
                     },
                     'note': 'Using fallback pricing due to model error'
                 })
         else:
             # Fallback pricing when model not loaded
-            base_price = 2.50 + (distance_km * 1.65 * surge_multiplier)
+            base_price = 2.50 + (distance_km * 1.65)
             
             # Always return all services
             return jsonify({
@@ -223,8 +209,7 @@ def predict():
                 },
                 'request_details': {
                     'distance_miles': round(distance_km * 0.621371, 1),
-                    'distance_km': round(distance_km, 1),
-                    'surge_multiplier': surge_multiplier
+                    'distance_km': round(distance_km, 1)
                 },
                 'note': 'Using fallback pricing'
             })
@@ -263,27 +248,15 @@ def predict_batch():
                 dropoff_lng = float(ride['dropoff_longitude'])
                 
                 distance_km = haversine_distance(pickup_lat, pickup_lng, dropoff_lat, dropoff_lng)
-                surge_multiplier = float(ride.get('surge_multiplier', 1.0))
-                
-                # Time parameters
-                now = datetime.now()
-                current_hour = now.hour
-                current_day = now.weekday()
                 
                 if pricing_model:
-                    # Get predictions for all services
+                    # Get predictions for all services - only coordinates needed!
                     try:
                         predictions = pricing_model.predict_all_services(
-                            distance_km=distance_km,
                             pickup_lat=pickup_lat,
                             pickup_lng=pickup_lng,
                             dropoff_lat=dropoff_lat,
-                            dropoff_lng=dropoff_lng,
-                            hour_of_day=current_hour,
-                            day_of_week=current_day,
-                            surge_multiplier=surge_multiplier,
-                            traffic_level=ride.get('traffic_level', 'moderate'),
-                            weather_condition=ride.get('weather_condition', 'clear')
+                            dropoff_lng=dropoff_lng
                         )
                         
                         # Round predictions
@@ -299,19 +272,29 @@ def predict_batch():
                         
                     except Exception as e:
                         logger.error(f"Batch prediction error for ride {i+1}: {e}")
-                        base_price = 2.50 + (distance_km * 1.65 * surge_multiplier)
+                        base_price = 2.50 + (distance_km * 1.65)
                         results.append({
                             'ride_index': i + 1,
-                            'predictions': {'UberX': round(base_price, 2)},
+                            'predictions': {
+                                'UberX': round(base_price, 2),
+                                'UberXL': round(base_price * 1.55, 2),
+                                'Uber Premier': round(base_price * 2.0, 2),
+                                'Premier SUV': round(base_price * 2.64, 2)
+                            },
                             'distance_km': round(distance_km, 1),
                             'note': 'Fallback pricing used'
                         })
                 else:
                     # Fallback pricing
-                    base_price = 2.50 + (distance_km * 1.65 * surge_multiplier)
+                    base_price = 2.50 + (distance_km * 1.65)
                     results.append({
                         'ride_index': i + 1,
-                        'predictions': {'UberX': round(base_price, 2)},
+                        'predictions': {
+                            'UberX': round(base_price, 2),
+                            'UberXL': round(base_price * 1.55, 2),
+                            'Uber Premier': round(base_price * 2.0, 2),
+                            'Premier SUV': round(base_price * 2.64, 2)
+                        },
                         'distance_km': round(distance_km, 1),
                         'note': 'Fallback pricing used'
                     })
