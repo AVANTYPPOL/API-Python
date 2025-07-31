@@ -56,17 +56,32 @@ class XGBoostPricingAPI:
     def load_model(self):
         """Load the XGBoost model"""
         try:
+            # Check if model file exists and log detailed info
+            print(f"🔍 Looking for model file: {self.model_path}")
+            print(f"🔍 Current working directory: {os.getcwd()}")
+            print(f"🔍 Files in current directory: {os.listdir('.')[:10]}")
+            
             if os.path.exists(self.model_path):
+                print(f"✅ Model file found: {self.model_path}")
+                file_size = os.path.getsize(self.model_path)
+                print(f"📦 Model file size: {file_size} bytes")
+                
                 self.model = XGBoostMiamiModel()
                 self.model.load_model(self.model_path)
                 self.is_loaded = True
                 print("✅ XGBoost model loaded successfully")
             else:
-                print(f"⚠️  Model file not found: {self.model_path}")
-                print("   Training new model...")
-                self.train_new_model()
+                print(f"❌ Model file not found: {self.model_path}")
+                print("📁 Available files:")
+                for f in os.listdir('.'):
+                    if f.endswith('.pkl'):
+                        print(f"   Found .pkl file: {f}")
+                print("   Using fallback pricing...")
+                self.is_loaded = False
         except Exception as e:
             print(f"❌ Failed to load XGBoost model: {e}")
+            import traceback
+            traceback.print_exc()
             self.is_loaded = False
     
     def train_new_model(self):
