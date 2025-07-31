@@ -5,6 +5,15 @@ import traceback
 from datetime import datetime
 import math
 
+# Import XGBoost API at top level to catch import errors early
+try:
+    from xgboost_pricing_api import XGBoostPricingAPI
+    XGBOOST_AVAILABLE = True
+    print("✅ XGBoost API imported successfully")
+except ImportError as e:
+    print(f"❌ XGBoost import failed: {e}")
+    XGBOOST_AVAILABLE = False
+
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -34,6 +43,10 @@ def load_xgboost_model():
     global pricing_model, model_info
     
     try:
+        if not XGBOOST_AVAILABLE:
+            logger.error("❌ XGBoost not available - cannot load model")
+            return False
+            
         logger.info("🚀 Loading XGBoost Miami Uber Price Prediction Model...")
         logger.info("=" * 70)
         logger.info("🔄 XGBOOST MIAMI UBER PRICE PREDICTION MODEL")
@@ -44,10 +57,8 @@ def load_xgboost_model():
         logger.info("💰 RMSE: $13.31")
         logger.info("=" * 70)
         
-        # Import and initialize the XGBoost model
-        from xgboost_pricing_api import XGBoostPricingAPI
-        logger.info("✅ Successfully imported XGBoostPricingAPI")
-        
+        # Initialize the XGBoost model
+        logger.info("✅ XGBoost API available, initializing model...")
         pricing_model = XGBoostPricingAPI('xgboost_miami_model.pkl')
         
         if pricing_model is not None and pricing_model.is_loaded:
