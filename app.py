@@ -9,7 +9,7 @@ import math
 try:
     from xgboost_pricing_api import XGBoostPricingAPI
     XGBOOST_AVAILABLE = True
-    print("✅ XGBoost API imported successfully")
+    print("✅ XGBoost API imported successfully - v2.0")
 except ImportError as e:
     print(f"❌ XGBoost import failed: {e}")
     XGBOOST_AVAILABLE = False
@@ -161,7 +161,7 @@ def predict():
         # Calculate distance
         distance_km = haversine_distance(pickup_lat, pickup_lng, dropoff_lat, dropoff_lng)
         
-        if pricing_model:
+        if pricing_model and hasattr(pricing_model, 'predict_all_services'):
             # Get prediction from XGBoost model - only coordinates needed!
             try:
                 predictions = pricing_model.predict_all_services(
@@ -180,8 +180,8 @@ def predict():
                         'distance_km': round(distance_km, 1)
                     },
                     'model_info': {
-                        'model_type': model_info.get('model_type', 'ultimate_miami_model'),
-                        'accuracy': model_info.get('accuracy', '72.86%')
+                        'model_type': model_info.get('model_type', 'xgboost_miami_model'),
+                        'accuracy': model_info.get('accuracy', '88.22%')
                     }
                 })
                 
