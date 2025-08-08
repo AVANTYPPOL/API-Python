@@ -11,7 +11,14 @@ import os
 import sys
 from dotenv import load_dotenv
 import requests
-import googlemaps
+
+# Try to import googlemaps, but make it optional
+try:
+    import googlemaps
+    GOOGLEMAPS_AVAILABLE = True
+except ImportError:
+    GOOGLEMAPS_AVAILABLE = False
+    print("⚠️  googlemaps module not available - will use Haversine distance")
 
 # Load environment variables
 load_dotenv()
@@ -43,7 +50,7 @@ class XGBoostPricingAPI:
         
         # Initialize Google Maps if API key is available
         google_api_key = os.getenv('GOOGLE_MAPS_API_KEY')
-        if google_api_key:
+        if google_api_key and GOOGLEMAPS_AVAILABLE:
             try:
                 self.gmaps = googlemaps.Client(key=google_api_key)
                 print("✅ Google Maps API initialized")
