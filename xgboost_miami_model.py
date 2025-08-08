@@ -368,8 +368,33 @@ class XGBoostMiamiModel:
         print(f"✅ Model saved to {filepath}")
     
     def load_model(self, filepath='xgboost_miami_model.pkl'):
-        """Load a trained model"""
-        model_data = joblib.load(filepath)
+        """Load a trained model with numpy version compatibility"""
+        try:
+            # First try normal joblib load
+            model_data = joblib.load(filepath)
+        except Exception as e:
+            if "numpy._core" in str(e):
+                print("⚠️  Numpy version mismatch detected, using compatibility loader...")
+                
+                # Custom unpickler that remaps numpy._core to numpy.core
+                import pickle
+                
+                class NumpyCompatUnpickler(pickle.Unpickler):
+                    def find_class(self, module, name):
+                        # Remap numpy._core modules to numpy.core
+                        if module.startswith('numpy._core'):
+                            module = module.replace('numpy._core', 'numpy.core')
+                        return super().find_class(module, name)
+                
+                # Load with custom unpickler
+                with open(filepath, 'rb') as f:
+                    unpickler = NumpyCompatUnpickler(f)
+                    model_data = unpickler.load()
+                
+                print("✅ Model loaded with compatibility layer")
+            else:
+                # Re-raise if it's a different error
+                raise
         
         self.model = model_data['model']
         self.label_encoders = model_data['label_encoders']
