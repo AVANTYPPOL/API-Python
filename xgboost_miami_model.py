@@ -26,6 +26,17 @@ import joblib
 import warnings
 warnings.filterwarnings('ignore')
 
+# Add numpy._core compatibility if needed
+if not hasattr(np, '_core') and hasattr(np, 'core'):
+    # Create a compatibility shim for numpy._core
+    class NumpyCoreCompat:
+        multiarray = np.core.multiarray
+        umath = np.core.umath
+        _internal = np.core._internal if hasattr(np.core, '_internal') else None
+        numeric = np.core.numeric if hasattr(np.core, 'numeric') else None
+        fromnumeric = np.core.fromnumeric if hasattr(np.core, 'fromnumeric') else None
+    np._core = NumpyCoreCompat()
+
 class XGBoostMiamiModel:
     """
     XGBoost model for Miami multi-service Uber pricing
