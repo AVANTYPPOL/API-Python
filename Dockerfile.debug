@@ -1,0 +1,31 @@
+# Debug Dockerfile to check numpy installation
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements.txt .
+
+# Install dependencies and show versions
+RUN pip install --no-cache-dir -r requirements.txt && \
+    python -c "import numpy; print(f'NumPy version: {numpy.__version__}')" && \
+    python -c "import pandas; print(f'Pandas version: {pandas.__version__}')" && \
+    python -c "import sklearn; print(f'Scikit-learn version: {sklearn.__version__}')" && \
+    python -c "import xgboost; print(f'XGBoost version: {xgboost.__version__}')"
+
+# Test numpy._core availability
+RUN python -c "import numpy; print(f'Has numpy._core: {hasattr(numpy, \"_core\")}')"
+
+# Copy application
+COPY . .
+
+EXPOSE 5000
+
+# Add debug startup
+CMD python -c "import numpy; print(f'Runtime NumPy: {numpy.__version__}'); print(f'Has _core: {hasattr(numpy, \"_core\")}')"; \
+    gunicorn -c gunicorn.conf.py app:app

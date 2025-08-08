@@ -369,29 +369,55 @@ class XGBoostMiamiModel:
     
     def load_model(self, filepath='xgboost_miami_model.pkl'):
         """Load a trained model with numpy version compatibility"""
+        # Print numpy version for debugging
+        print(f"🔍 Current numpy version: {np.__version__}")
+        print(f"🔍 Has numpy._core: {hasattr(np, '_core')}")
+        
         try:
             # First try normal joblib load
             model_data = joblib.load(filepath)
         except Exception as e:
-            if "numpy._core" in str(e):
-                print("⚠️  Numpy version mismatch detected, using compatibility loader...")
+            error_str = str(e)
+            print(f"⚠️  Initial load failed: {error_str}")
+            
+            if "numpy._core" in error_str or "numpy.core._multiarray_umath" in error_str:
+                print("🔧 Attempting compatibility fix...")
                 
-                # Custom unpickler that remaps numpy._core to numpy.core
-                import pickle
-                
-                class NumpyCompatUnpickler(pickle.Unpickler):
-                    def find_class(self, module, name):
-                        # Remap numpy._core modules to numpy.core
-                        if module.startswith('numpy._core'):
-                            module = module.replace('numpy._core', 'numpy.core')
-                        return super().find_class(module, name)
-                
-                # Load with custom unpickler
-                with open(filepath, 'rb') as f:
-                    unpickler = NumpyCompatUnpickler(f)
-                    model_data = unpickler.load()
-                
-                print("✅ Model loaded with compatibility layer")
+                # Try multiple approaches
+                try:
+                    # Approach 1: Custom unpickler
+                    import pickle
+                    
+                    class NumpyCompatUnpickler(pickle.Unpickler):
+                        def find_class(self, module, name):
+                            # Remap numpy._core modules to numpy.core
+                            if 'numpy._core' in module:
+                                module = module.replace('numpy._core', 'numpy.core')
+                            # Also handle specific submodules
+                            if module == 'numpy.core._multiarray_umath':
+                                try:
+                                    return getattr(np.core, 'multiarray')
+                                except AttributeError:
+                                    return getattr(np.core, '_multiarray_umath')
+                            return super().find_class(module, name)
+                    
+                    # Load with custom unpickler
+                    with open(filepath, 'rb') as f:
+                        unpickler = NumpyCompatUnpickler(f)
+                        model_data = unpickler.load()
+                    
+                    print("✅ Model loaded with compatibility layer")
+                    
+                except Exception as e2:
+                    print(f"❌ Compatibility fix also failed: {e2}")
+                    # Last resort - try loading with pickle directly
+                    try:
+                        with open(filepath, 'rb') as f:
+                            model_data = pickle.load(f, encoding='latin1')
+                        print("✅ Model loaded with pickle encoding='latin1'")
+                    except Exception as e3:
+                        print(f"❌ All loading attempts failed")
+                        raise e3
             else:
                 # Re-raise if it's a different error
                 raise
