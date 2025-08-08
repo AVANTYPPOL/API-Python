@@ -390,19 +390,45 @@ class XGBoostMiamiModel:
                     
                     class NumpyCompatUnpickler(pickle.Unpickler):
                         def find_class(self, module, name):
+                            # Debug logging
+                            original_module = module
+                            
                             # Remap numpy._core modules to numpy.core
                             if 'numpy._core' in module:
                                 module = module.replace('numpy._core', 'numpy.core')
-                            # Also handle specific submodules
+                            
+                            # Handle specific numpy submodules
                             if module == 'numpy.core._multiarray_umath':
                                 try:
                                     return getattr(np.core, 'multiarray')
                                 except AttributeError:
                                     return getattr(np.core, '_multiarray_umath')
-                            # Handle XGBRegressor import issue
-                            if name == 'XGBRegressor' and module == '__main__':
+                            
+                            # Handle XGBoost classes from __main__
+                            if module == '__main__':
+                                # Map common XGBoost classes
+                                xgb_classes = {
+                                    'XGBRegressor': 'xgboost.XGBRegressor',
+                                    'XGBClassifier': 'xgboost.XGBClassifier',
+                                    'DMatrix': 'xgboost.DMatrix',
+                                    'Booster': 'xgboost.Booster'
+                                }
+                                
+                                if name in xgb_classes:
+                                    import xgboost as xgb
+                                    parts = xgb_classes[name].split('.')
+                                    obj = xgb
+                                    for part in parts[1:]:
+                                        obj = getattr(obj, part)
+                                    print(f"✅ Remapped {original_module}.{name} → {xgb_classes[name]}")
+                                    return obj
+                            
+                            # Handle direct XGBoost module references
+                            if module == 'XGBRegressor':
                                 import xgboost as xgb
+                                print(f"✅ Remapped module '{module}' → xgboost.XGBRegressor")
                                 return xgb.XGBRegressor
+                            
                             return super().find_class(module, name)
                     
                     # Load with custom unpickler
