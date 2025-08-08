@@ -399,6 +399,10 @@ class XGBoostMiamiModel:
                                     return getattr(np.core, 'multiarray')
                                 except AttributeError:
                                     return getattr(np.core, '_multiarray_umath')
+                            # Handle XGBRegressor import issue
+                            if name == 'XGBRegressor' and module == '__main__':
+                                import xgboost as xgb
+                                return xgb.XGBRegressor
                             return super().find_class(module, name)
                     
                     # Load with custom unpickler

@@ -88,9 +88,11 @@ docker-compose.dev.yml
 # KEEP ESSENTIAL PRODUCTION FILES
 # ================
 !app.py
-!hybrid_realtime_api.py
-!hybrid_uber_model.pkl
+!xgboost_pricing_api.py
+!xgboost_miami_model.py
+!xgboost_miami_model.pkl
 !requirements.txt
 !Dockerfile
 !gunicorn.conf.py
+!CLAUDE.md
 !templates/ 
