@@ -1,0 +1,44 @@
+# Dockerfile for training model with cloud-compatible versions
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create requirements for training
+RUN echo "numpy==1.24.3" > requirements-train.txt && \
+    echo "pandas==2.0.3" >> requirements-train.txt && \
+    echo "scikit-learn==1.3.0" >> requirements-train.txt && \
+    echo "xgboost==2.0.3" >> requirements-train.txt && \
+    echo "joblib==1.3.2" >> requirements-train.txt && \
+    echo "requests==2.31.0" >> requirements-train.txt
+
+# Install exact versions from cloud
+RUN pip install --no-cache-dir -r requirements-train.txt
+
+# Verify versions
+RUN python -c "import numpy; print(f'NumPy: {numpy.__version__}')" && \
+    python -c "import pandas; print(f'Pandas: {pandas.__version__}')" && \
+    python -c "import sklearn; print(f'Scikit-learn: {sklearn.__version__}')" && \
+    python -c "import xgboost; print(f'XGBoost: {xgboost.__version__}')" && \
+    python -c "import numpy; print(f'Has numpy._core: {hasattr(numpy, \"_core\")}')"
+
+# Copy necessary files
+COPY xgboost_miami_model.py .
+COPY uber_ml_data.db .
+
+# Create training script
+RUN echo '#!/usr/bin/env python3' > train_cloud_model.py && \
+    echo 'import os' >> train_cloud_model.py && \
+    echo 'print("Training model with cloud-compatible versions...")' >> train_cloud_model.py && \
+    echo 'from xgboost_miami_model import XGBoostMiamiModel' >> train_cloud_model.py && \
+    echo 'model = XGBoostMiamiModel("uber_ml_data.db")' >> train_cloud_model.py && \
+    echo 'model.train()' >> train_cloud_model.py && \
+    echo 'model.save_model("xgboost_miami_model_cloud_trained.pkl")' >> train_cloud_model.py && \
+    echo 'print("Model saved to xgboost_miami_model_cloud_trained.pkl")' >> train_cloud_model.py
+
+CMD ["python", "train_cloud_model.py"]
