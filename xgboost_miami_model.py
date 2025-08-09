@@ -18,6 +18,7 @@ Date: 2025
 import pandas as pd
 import numpy as np
 import sqlite3
+import os
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
@@ -373,6 +374,12 @@ class XGBoostMiamiModel:
         print(f"🔍 Current numpy version: {np.__version__}")
         print(f"🔍 Has numpy._core: {hasattr(np, '_core')}")
         
+        # Check if JSON format exists as fallback
+        json_filepath = filepath.replace('.pkl', '.json')
+        json_exists = os.path.exists(json_filepath)
+        if json_exists:
+            print(f"📄 JSON format available: {json_filepath}")
+        
         try:
             # First try normal joblib load
             model_data = joblib.load(filepath)
@@ -446,8 +453,31 @@ class XGBoostMiamiModel:
                             model_data = pickle.load(f, encoding='latin1')
                         print("✅ Model loaded with pickle encoding='latin1'")
                     except Exception as e3:
-                        print(f"❌ All loading attempts failed")
-                        raise e3
+                        # Try loading from JSON format if available
+                        if json_exists:
+                            print(f"🔄 Attempting to load from JSON format: {json_filepath}")
+                            try:
+                                import xgboost as xgb
+                                # Load XGBoost model from JSON
+                                xgb_model = xgb.XGBRegressor()
+                                xgb_model.load_model(json_filepath)
+                                
+                                # Create minimal model_data structure
+                                # We'll use default values for missing components
+                                model_data = {
+                                    'model': xgb_model,
+                                    'label_encoders': {},
+                                    'feature_columns': None,  # Will be set from model if available
+                                    'service_multipliers': self.service_multipliers
+                                }
+                                print("✅ Model loaded from JSON format (limited compatibility mode)")
+                            except Exception as e4:
+                                print(f"❌ JSON loading also failed: {e4}")
+                                print(f"❌ All loading attempts failed")
+                                raise e3
+                        else:
+                            print(f"❌ All loading attempts failed")
+                            raise e3
             else:
                 # Re-raise if it's a different error
                 raise
