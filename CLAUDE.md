@@ -6,6 +6,14 @@
 
 The API endpoints must maintain their current interface to avoid breaking any internal applications that depend on this service.
 
+### Why This Is Critical
+We discovered that even small changes like:
+- Adding a `note` field to indicate fallback pricing
+- Changing service names from "UberX" to "UBERX" 
+- Adding or removing ANY fields from the response
+
+Can and WILL break production applications that parse the API responses. The API contract must remain EXACTLY as specified below.
+
 ### Endpoints (DO NOT CHANGE)
 - `POST /predict` - Single ride prediction
 - `POST /predict/batch` - Batch predictions
@@ -62,6 +70,8 @@ The API endpoints must maintain their current interface to avoid breaking any in
 1. **Backend improvements are allowed** - You can fix bugs, improve model accuracy, optimize performance
 2. **API contract must remain stable** - Never change field names, data types, or structure
 3. **Test with existing clients** - Always verify changes don't break existing integrations
+4. **NO EXTRA FIELDS** - Do not add helpful fields like `note`, `debug`, `info` etc.
+5. **EXACT RESPONSE FORMAT** - Every response must have the exact same structure
 
 ## Model Updates
 
@@ -99,6 +109,70 @@ When updating dependencies, ensure compatibility with:
 ```bash
 pip install flask googlemaps
 ```
+
+## Service Name Consistency
+
+**CRITICAL: Always use customer-facing service names in responses:**
+- `UberX` (NOT "UBERX")
+- `UberXL` (NOT "UBERXL")  
+- `Uber Premier` (NOT "PREMIER")
+- `Premier SUV` (NOT "SUV_PREMIER")
+
+The model internally uses UBERX/PREMIER/etc., but the API must ALWAYS convert these to the customer-facing names. This applies to:
+- Model predictions
+- Fallback pricing
+- Error responses
+- ALL scenarios
+
+## Recent Critical Fixes (August 2025)
+
+### 1. JSON Serialization Issue
+- **Problem**: numpy float32 values were not JSON serializable
+- **Solution**: Convert all predictions to Python float before returning
+- **Files**: xgboost_miami_model.py, xgboost_pricing_api.py
+
+### 2. Service Name Inconsistency  
+- **Problem**: Fallback responses used internal names (UBERX, PREMIER)
+- **Solution**: Ensure all responses use customer-facing names
+- **File**: xgboost_pricing_api.py
+
+### 3. Missing Required Fields
+- **Problem**: Fallback responses missing `model_info` field
+- **Solution**: All responses must include ALL required fields
+- **File**: app.py
+
+### 4. 503 Timeout Issues
+- **Problem**: Model loading during startup caused timeouts
+- **Solution**: Lazy loading - model loads on first request
+- **Files**: app.py, gunicorn.conf.py
+
+### 5. CORS Support
+- **Problem**: Browser/Postman requests blocked
+- **Solution**: Added Flask-CORS
+- **Files**: app.py, requirements.txt
+
+## Detecting Model vs Fallback Pricing
+
+Since we cannot add fields to indicate fallback usage (breaks API contract), here's how to detect it:
+
+### Fallback Pricing Formula
+```python
+base_price = 2.50 + (distance_km * 1.65)
+UberX = base_price
+UberXL = base_price * 1.55
+Uber Premier = base_price * 2.0
+Premier SUV = base_price * 2.64
+```
+
+### Detection Methods
+1. **Check if prices match formula exactly** - Fallback uses simple multiplication
+2. **Check server logs** - Look for "Model prediction error" or "fallback"
+3. **Test price variation** - Model prices vary by location/time, fallback only by distance
+4. **Response time** - Fallback is faster (<50ms) vs model (100-300ms)
+
+### Log Indicators
+- **Model Working**: "✅ XGBoost model loaded successfully"
+- **Using Fallback**: "❌ Model prediction error" or "Model not loaded"
 
 ## Common Issues & Solutions
 
