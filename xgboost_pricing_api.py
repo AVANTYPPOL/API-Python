@@ -208,12 +208,12 @@ class XGBoostPricingAPI:
                 weather_condition=weather_condition
             )
             
-            # Convert to GUI expected format
+            # Convert to GUI expected format and ensure JSON serializable
             gui_results = {
-                'UberX': results['UBERX'],
-                'UberXL': results['UBERXL'],
-                'Uber Premier': results['PREMIER'],
-                'Premier SUV': results['SUV_PREMIER']
+                'UberX': float(results['UBERX']),
+                'UberXL': float(results['UBERXL']),
+                'Uber Premier': float(results['PREMIER']),
+                'Premier SUV': float(results['SUV_PREMIER'])
             }
             
             return gui_results

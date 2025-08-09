@@ -346,7 +346,7 @@ class XGBoostMiamiModel:
         
         return {
             'service_type': service_type,
-            'predicted_price': prediction,
+            'predicted_price': float(prediction),  # Convert numpy float to Python float
             'distance_km': distance_km
         }
     
