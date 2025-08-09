@@ -23,28 +23,12 @@ except ImportError:
 # Load environment variables
 load_dotenv()
 
-# Add the project root and specific paths to avoid __init__.py issues
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-models_path = os.path.join(project_root, 'src', 'models')
-sys.path.append(project_root)
-sys.path.append(models_path)
-
+# Simple import - files are in the same directory
 from xgboost_miami_model import XGBoostMiamiModel
 import joblib
 import numpy as np
 from datetime import datetime
 import pickle
-
-# Add numpy._core compatibility if needed
-if not hasattr(np, '_core') and hasattr(np, 'core'):
-    # Create a compatibility shim for numpy._core
-    class NumpyCoreCompat:
-        multiarray = np.core.multiarray
-        umath = np.core.umath
-        _internal = np.core._internal if hasattr(np.core, '_internal') else None
-        numeric = np.core.numeric if hasattr(np.core, 'numeric') else None
-        fromnumeric = np.core.fromnumeric if hasattr(np.core, 'fromnumeric') else None
-    np._core = NumpyCoreCompat()
 
 class XGBoostPricingAPI:
     """

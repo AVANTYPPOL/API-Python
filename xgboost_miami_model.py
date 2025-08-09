@@ -19,6 +19,7 @@ import pandas as pd
 import numpy as np
 import sqlite3
 import os
+import json
 import xgboost as xgb
 import joblib
 import warnings
@@ -34,16 +35,7 @@ except ImportError:
     SKLEARN_AVAILABLE = False
     print("⚠️ Scikit-learn not available - training disabled, loading only mode")
 
-# Add numpy._core compatibility if needed
-if not hasattr(np, '_core') and hasattr(np, 'core'):
-    # Create a compatibility shim for numpy._core
-    class NumpyCoreCompat:
-        multiarray = np.core.multiarray
-        umath = np.core.umath
-        _internal = np.core._internal if hasattr(np.core, '_internal') else None
-        numeric = np.core.numeric if hasattr(np.core, 'numeric') else None
-        fromnumeric = np.core.fromnumeric if hasattr(np.core, 'fromnumeric') else None
-    np._core = NumpyCoreCompat()
+# Note: numpy compatibility handled in custom unpickler if needed
 
 class XGBoostMiamiModel:
     """
@@ -402,16 +394,37 @@ class XGBoostMiamiModel:
         """Load a trained model with numpy version compatibility"""
         # Print numpy version for debugging
         print(f"🔍 Current numpy version: {np.__version__}")
-        print(f"🔍 Has numpy._core: {hasattr(np, '_core')}")
         
-        # Check if JSON format exists as fallback
+        # Check if JSON format exists - prefer it for compatibility
         json_filepath = filepath.replace('.pkl', '.json')
-        json_exists = os.path.exists(json_filepath)
-        if json_exists:
-            print(f"📄 JSON format available: {json_filepath}")
+        metadata_filepath = 'model_metadata.json'
+        
+        if os.path.exists(json_filepath) and os.path.exists(metadata_filepath):
+            print(f"📄 Loading from JSON format for maximum compatibility...")
+            try:
+                # Load XGBoost model from JSON
+                import xgboost as xgb
+                xgb_model = xgb.XGBRegressor()
+                xgb_model.load_model(json_filepath)
+                
+                # Load metadata
+                with open(metadata_filepath, 'r') as f:
+                    metadata = json.load(f)
+                
+                # Set model attributes
+                self.model = xgb_model
+                self.label_encoders = metadata.get('label_encoders', {})
+                self.feature_columns = metadata.get('feature_columns', None)
+                self.service_multipliers = metadata.get('service_multipliers', self.service_multipliers)
+                self.is_trained = True
+                
+                print("✅ Model loaded from JSON format (maximum compatibility)")
+                return
+            except Exception as e:
+                print(f"⚠️ JSON loading failed: {e}, trying pickle format...")
         
         try:
-            # First try normal joblib load
+            # Try normal joblib load
             model_data = joblib.load(filepath)
         except Exception as e:
             error_str = str(e)
