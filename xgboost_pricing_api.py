@@ -170,12 +170,12 @@ class XGBoostPricingAPI:
         Compatible with GUI interface
         """
         if not self.is_loaded:
-            # Return fallback prices if model not loaded
+            # Return fallback prices if model not loaded (with correct naming)
             return {
-                'UBERX': 25.50,
-                'UBERXL': 35.75,
-                'PREMIER': 45.20,
-                'SUV_PREMIER': 55.90
+                'UberX': 25.50,
+                'UberXL': 35.75,
+                'Uber Premier': 45.20,
+                'Premier SUV': 55.90
             }
         
         # Use current time if not provided
