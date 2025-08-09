@@ -4,6 +4,8 @@ import os
 import traceback
 from datetime import datetime
 import math
+import psutil  # For memory monitoring
+import time
 
 # Import XGBoost API at top level to catch import errors early
 try:
@@ -23,6 +25,8 @@ app = Flask(__name__)
 # Global variables
 pricing_model = None
 model_info = {}
+model_loaded = False
+model_loading = False
 
 def haversine_distance(lat1, lng1, lat2, lng2):
     """Calculate distance between two coordinates using Haversine formula"""
@@ -39,8 +43,19 @@ def haversine_distance(lat1, lng1, lat2, lng2):
     return distance
 
 def load_xgboost_model():
-    """Load the XGBoost ML model"""
-    global pricing_model, model_info
+    """Load the XGBoost ML model with lazy loading"""
+    global pricing_model, model_info, model_loaded, model_loading
+    
+    # Prevent multiple simultaneous loading attempts
+    if model_loading:
+        logger.info("⏳ Model is already being loaded by another process...")
+        return model_loaded
+    
+    if model_loaded:
+        logger.info("✅ Model already loaded, skipping...")
+        return True
+    
+    model_loading = True
     
     try:
         if not XGBOOST_AVAILABLE:
@@ -57,9 +72,28 @@ def load_xgboost_model():
         logger.info("💰 RMSE: $13.31")
         logger.info("=" * 70)
         
+        # Monitor memory before loading
+        try:
+            process = psutil.Process()
+            mem_before = process.memory_info().rss / 1024 / 1024  # MB
+            logger.info(f"💾 Memory before model load: {mem_before:.2f} MB")
+        except:
+            mem_before = 0
+        
         # Initialize the XGBoost model
         logger.info("✅ XGBoost API available, initializing model...")
+        start_time = time.time()
         pricing_model = XGBoostPricingAPI('xgboost_miami_model.pkl')
+        load_time = time.time() - start_time
+        logger.info(f"⏱️ Model initialization took {load_time:.2f} seconds")
+        
+        # Monitor memory after loading
+        try:
+            mem_after = process.memory_info().rss / 1024 / 1024  # MB
+            mem_used = mem_after - mem_before
+            logger.info(f"💾 Memory after model load: {mem_after:.2f} MB (used: {mem_used:.2f} MB)")
+        except:
+            pass
         
         if pricing_model is not None and pricing_model.is_loaded:
             logger.info("✅ XGBoost model loaded successfully")
@@ -89,29 +123,40 @@ def load_xgboost_model():
             logger.info("=" * 70)
             logger.info("✅ XGBOOST MODEL READY FOR PRODUCTION")
             logger.info("=" * 70)
+            model_loaded = True
+            model_loading = False
+            return True
         else:
             logger.warning("⚠️  XGBoost model not loaded properly, using fallback pricing")
-        
-        return True
+            model_loading = False
+            return False
         
     except Exception as e:
         logger.error(f"❌ Error loading XGBoost model: {e}")
         logger.error(f"Traceback: {traceback.format_exc()}")
+        model_loading = False
         return False
+    finally:
+        model_loading = False
 
-# Load model on startup
+# Lazy loading - model will be loaded on first request
 logger.info("🚀 Initializing Rideshare Pricing API...")
-if not load_xgboost_model():
-    logger.warning("⚠️  XGBoost model failed to load, using fallback algorithm")
-    logger.info("✅ Fallback pricing algorithm is production-ready")
+logger.info("📦 Model will be loaded on first request (lazy loading enabled)")
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint"""
+    """Health check endpoint - triggers lazy model loading"""
+    global model_loaded
+    
+    # Try to load model if not already loaded (lazy loading)
+    if not model_loaded:
+        logger.info("🔄 Health check triggered - attempting to load model...")
+        load_xgboost_model()
+    
     return jsonify({
         'status': 'healthy',
         'version': '1.0.0',
-        'model_loaded': pricing_model is not None,
+        'model_loaded': model_loaded,
         'model_info': model_info,
         'api_name': 'XGBoost Miami Pricing API'
     })
@@ -135,6 +180,13 @@ def model_info_endpoint():
 @app.route('/predict', methods=['POST'])
 def predict():
     """Price prediction endpoint using Ultimate Miami model"""
+    global model_loaded
+    
+    # Ensure model is loaded (lazy loading)
+    if not model_loaded:
+        logger.info("🔄 Prediction request triggered - attempting to load model...")
+        load_xgboost_model()
+    
     try:
         data = request.get_json()
         
