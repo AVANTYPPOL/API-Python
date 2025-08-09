@@ -1,0 +1,122 @@
+{
+  "feature_columns": [
+    "distance_km",
+    "distance_squared",
+    "distance_log",
+    "distance_sqrt",
+    "pickup_lat",
+    "pickup_lng",
+    "dropoff_lat",
+    "dropoff_lng",
+    "hour_of_day",
+    "day_of_week",
+    "is_rush_hour",
+    "is_late_night",
+    "is_weekend",
+    "pickup_to_airport",
+    "dropoff_to_airport",
+    "pickup_to_beach",
+    "dropoff_to_beach",
+    "pickup_to_downtown",
+    "dropoff_to_downtown",
+    "is_airport_pickup",
+    "is_airport_dropoff",
+    "is_airport_trip",
+    "service_type_encoded",
+    "traffic_level_encoded",
+    "weather_condition_encoded",
+    "service_numeric",
+    "distance_service_interaction",
+    "rush_hour_service_interaction",
+    "airport_service_interaction"
+  ],
+  "service_multipliers": {
+    "UBERX": 1.0,
+    "UBERXL": 1.4,
+    "PREMIER": 1.8,
+    "SUV_PREMIER": 2.2
+  },
+  "label_encoders": {
+    "service_type": {
+      "classes": [
+        "PREMIER",
+        "SUV_PREMIER",
+        "UBERX",
+        "UBERXL"
+      ],
+      "class_to_int": {
+        "PREMIER": 0,
+        "SUV_PREMIER": 1,
+        "UBERX": 2,
+        "UBERXL": 3
+      },
+      "int_to_class": {
+        "0": "PREMIER",
+        "1": "SUV_PREMIER",
+        "2": "UBERX",
+        "3": "UBERXL"
+      }
+    },
+    "traffic_level": {
+      "classes": [
+        "heavy",
+        "light",
+        "moderate",
+        "unknown",
+        null
+      ],
+      "class_to_int": {
+        "heavy": 0,
+        "light": 1,
+        "moderate": 2,
+        "unknown": 3,
+        "None": 4
+      },
+      "int_to_class": {
+        "0": "heavy",
+        "1": "light",
+        "2": "moderate",
+        "3": "unknown",
+        "4": "None"
+      }
+    },
+    "weather_condition": {
+      "classes": [
+        "clear",
+        "clouds",
+        "drizzle",
+        "fog",
+        "haze",
+        "mist",
+        "rain",
+        "thunderstorm",
+        "unknown",
+        null
+      ],
+      "class_to_int": {
+        "clear": 0,
+        "clouds": 1,
+        "drizzle": 2,
+        "fog": 3,
+        "haze": 4,
+        "mist": 5,
+        "rain": 6,
+        "thunderstorm": 7,
+        "unknown": 8,
+        "None": 9
+      },
+      "int_to_class": {
+        "0": "clear",
+        "1": "clouds",
+        "2": "drizzle",
+        "3": "fog",
+        "4": "haze",
+        "5": "mist",
+        "6": "rain",
+        "7": "thunderstorm",
+        "8": "unknown",
+        "9": "None"
+      }
+    }
+  }
+}

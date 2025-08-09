@@ -19,13 +19,20 @@ import pandas as pd
 import numpy as np
 import sqlite3
 import os
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 import xgboost as xgb
 import joblib
 import warnings
 warnings.filterwarnings('ignore')
+
+# Import sklearn modules only when needed (for training)
+try:
+    from sklearn.model_selection import train_test_split, cross_val_score
+    from sklearn.preprocessing import LabelEncoder
+    from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+    print("⚠️ Scikit-learn not available - training disabled, loading only mode")
 
 # Add numpy._core compatibility if needed
 if not hasattr(np, '_core') and hasattr(np, 'core'):
@@ -177,14 +184,34 @@ class XGBoostMiamiModel:
         
         for col in categorical_cols:
             if col not in self.label_encoders:
-                self.label_encoders[col] = LabelEncoder()
-                df_processed[f'{col}_encoded'] = self.label_encoders[col].fit_transform(df_processed[col])
+                if SKLEARN_AVAILABLE:
+                    self.label_encoders[col] = LabelEncoder()
+                    df_processed[f'{col}_encoded'] = self.label_encoders[col].fit_transform(df_processed[col])
+                else:
+                    # Create simple mapping
+                    unique_vals = df_processed[col].unique()
+                    self.label_encoders[col] = {
+                        'class_to_int': {str(val): i for i, val in enumerate(unique_vals)},
+                        'int_to_class': {i: str(val) for i, val in enumerate(unique_vals)},
+                        'classes': list(unique_vals)
+                    }
+                    df_processed[f'{col}_encoded'] = df_processed[col].map(
+                        lambda x: self.label_encoders[col]['class_to_int'].get(str(x), -1)
+                    )
             else:
-                # Handle new categories
-                df_processed[f'{col}_encoded'] = df_processed[col].map(
-                    lambda x: self.label_encoders[col].transform([x])[0] 
-                    if x in self.label_encoders[col].classes_ else -1
-                )
+                # Handle both encoder types
+                encoder = self.label_encoders[col]
+                if isinstance(encoder, dict):
+                    # Dictionary encoder
+                    df_processed[f'{col}_encoded'] = df_processed[col].map(
+                        lambda x: encoder['class_to_int'].get(str(x), -1)
+                    )
+                else:
+                    # sklearn LabelEncoder
+                    df_processed[f'{col}_encoded'] = df_processed[col].map(
+                        lambda x: encoder.transform([x])[0] 
+                        if x in encoder.classes_ else -1
+                    )
         
         # Select features for model
         feature_cols = [
@@ -208,6 +235,9 @@ class XGBoostMiamiModel:
     
     def train(self):
         """Train the XGBoost model"""
+        if not SKLEARN_AVAILABLE:
+            raise ImportError("Scikit-learn is required for training. Install with: pip install scikit-learn")
+        
         print("\n🚀 Training XGBoost Miami Multi-Service Model...")
         
         # Load and preprocess data
@@ -483,7 +513,18 @@ class XGBoostMiamiModel:
                 raise
         
         self.model = model_data['model']
-        self.label_encoders = model_data['label_encoders']
+        
+        # Handle both old (LabelEncoder) and new (dictionary) formats
+        encoders = model_data.get('label_encoders', {})
+        if encoders and isinstance(list(encoders.values())[0] if encoders else None, dict):
+            # New format - already dictionaries
+            self.label_encoders = encoders
+            print("  📦 Using dictionary-based encoders (no sklearn dependency)")
+        else:
+            # Old format - sklearn LabelEncoders
+            self.label_encoders = encoders
+            print("  📦 Using sklearn LabelEncoders")
+        
         self.feature_columns = model_data['feature_columns']
         self.service_multipliers = model_data.get('service_multipliers', self.service_multipliers)
         self.is_trained = True
