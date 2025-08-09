@@ -254,8 +254,7 @@ def predict():
                     'request_details': {
                         'distance_miles': round(distance_km * 0.621371, 1),
                         'distance_km': round(distance_km, 1)
-                    },
-                    'note': 'Using fallback pricing due to model error'
+                    }
                 })
         else:
             # Fallback pricing when model not loaded
@@ -273,8 +272,7 @@ def predict():
                 'request_details': {
                     'distance_miles': round(distance_km * 0.621371, 1),
                     'distance_km': round(distance_km, 1)
-                },
-                'note': 'Using fallback pricing'
+                }
             })
         
     except Exception as e:
@@ -344,8 +342,7 @@ def predict_batch():
                                 'Uber Premier': round(base_price * 2.0, 2),
                                 'Premier SUV': round(base_price * 2.64, 2)
                             },
-                            'distance_km': round(distance_km, 1),
-                            'note': 'Fallback pricing used'
+                            'distance_km': round(distance_km, 1)
                         })
                 else:
                     # Fallback pricing
@@ -358,8 +355,7 @@ def predict_batch():
                             'Uber Premier': round(base_price * 2.0, 2),
                             'Premier SUV': round(base_price * 2.64, 2)
                         },
-                        'distance_km': round(distance_km, 1),
-                        'note': 'Fallback pricing used'
+                        'distance_km': round(distance_km, 1)
                     })
                     
             except Exception as e:
