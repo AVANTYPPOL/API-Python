@@ -170,12 +170,12 @@ class XGBoostPricingAPI:
         Compatible with GUI interface
         """
         if not self.is_loaded:
-            # Return fallback prices if model not loaded (with correct naming)
+            # Return fallback prices if model not loaded
             return {
-                'UberX': 25.50,
-                'UberXL': 35.75,
-                'Uber Premier': 45.20,
-                'Premier SUV': 55.90
+                'PREMIER': 45.20,
+                'SUV_PREMIER': 55.90,
+                'UBERX': 25.50,
+                'UBERXL': 35.75
             }
         
         # Use current time if not provided
@@ -208,12 +208,12 @@ class XGBoostPricingAPI:
                 weather_condition=weather_condition
             )
             
-            # Convert to GUI expected format and ensure JSON serializable
+            # Return results in internal format, ensure JSON serializable
             gui_results = {
-                'UberX': float(results['UBERX']),
-                'UberXL': float(results['UBERXL']),
-                'Uber Premier': float(results['PREMIER']),
-                'Premier SUV': float(results['SUV_PREMIER'])
+                'PREMIER': float(results['PREMIER']),
+                'SUV_PREMIER': float(results['SUV_PREMIER']),
+                'UBERX': float(results['UBERX']),
+                'UBERXL': float(results['UBERXL'])
             }
             
             return gui_results
@@ -222,10 +222,10 @@ class XGBoostPricingAPI:
             print(f"❌ Prediction error: {e}")
             # Return fallback prices
             return {
-                'UberX': 25.50,
-                'UberXL': 35.75,
-                'Uber Premier': 45.20,
-                'Premier SUV': 55.90
+                'PREMIER': 45.20,
+                'SUV_PREMIER': 55.90,
+                'UBERX': 25.50,
+                'UBERXL': 35.75
             }
     
     def predict_price(self, distance_km, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,

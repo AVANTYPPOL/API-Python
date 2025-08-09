@@ -35,10 +35,10 @@ Can and WILL break production applications that parse the API responses. The API
 {
   "success": true,
   "predictions": {
-    "UberX": 35.50,
-    "UberXL": 52.75,
-    "Uber Premier": 68.20,
-    "Premier SUV": 85.90
+    "PREMIER": 68.20,
+    "SUV_PREMIER": 85.90,
+    "UBERX": 35.50,
+    "UBERXL": 52.75
   },
   "request_details": {
     "distance_miles": 12.3,
@@ -77,7 +77,7 @@ Can and WILL break production applications that parse the API responses. The API
 
 When updating the ML model:
 - Ensure it still accepts the same inputs (coordinates only)
-- Ensure it returns all 4 service types: UberX, UberXL, Uber Premier, Premier SUV
+- Ensure it returns all 4 service types: PREMIER, SUV_PREMIER, UBERX, UBERXL
 - Maintain the same response structure
 
 ## Testing Commands
@@ -112,13 +112,13 @@ pip install flask googlemaps
 
 ## Service Name Consistency
 
-**CRITICAL: Always use customer-facing service names in responses:**
-- `UberX` (NOT "UBERX")
-- `UberXL` (NOT "UBERXL")  
-- `Uber Premier` (NOT "PREMIER")
-- `Premier SUV` (NOT "SUV_PREMIER")
+**CRITICAL: Always use internal service names in responses:**
+- `UBERX` (internal format)
+- `UBERXL` (internal format)  
+- `PREMIER` (internal format)
+- `SUV_PREMIER` (internal format)
 
-The model internally uses UBERX/PREMIER/etc., but the API must ALWAYS convert these to the customer-facing names. This applies to:
+The API returns internal service names in the specific order: PREMIER, SUV_PREMIER, UBERX, UBERXL. This applies to:
 - Model predictions
 - Fallback pricing
 - Error responses
@@ -131,10 +131,10 @@ The model internally uses UBERX/PREMIER/etc., but the API must ALWAYS convert th
 - **Solution**: Convert all predictions to Python float before returning
 - **Files**: xgboost_miami_model.py, xgboost_pricing_api.py
 
-### 2. Service Name Inconsistency  
-- **Problem**: Fallback responses used internal names (UBERX, PREMIER)
-- **Solution**: Ensure all responses use customer-facing names
-- **File**: xgboost_pricing_api.py
+### 2. Service Name Standardization  
+- **Problem**: Inconsistent service naming between model and fallback
+- **Solution**: Standardized to use internal names (UBERX, PREMIER, etc.)
+- **File**: xgboost_pricing_api.py, app.py
 
 ### 3. Missing Required Fields
 - **Problem**: Fallback responses missing `model_info` field
@@ -158,10 +158,10 @@ Since we cannot add fields to indicate fallback usage (breaks API contract), her
 ### Fallback Pricing Formula
 ```python
 base_price = 2.50 + (distance_km * 1.65)
-UberX = base_price
-UberXL = base_price * 1.55
-Uber Premier = base_price * 2.0
-Premier SUV = base_price * 2.64
+UBERX = base_price
+UBERXL = base_price * 1.55
+PREMIER = base_price * 2.0
+SUV_PREMIER = base_price * 2.64
 ```
 
 ### Detection Methods
@@ -209,7 +209,7 @@ Optional environment variables (in .env file):
 - **Model Type:** XGBoost Multi-Service Predictor
 - **Accuracy:** 88.22% (R² score)
 - **Training Data:** 28,531 Miami rides
-- **Services:** UberX, UberXL, Uber Premier, Premier SUV
+- **Services:** PREMIER, SUV_PREMIER, UBERX, UBERXL
 - **Model File:** `xgboost_miami_model.pkl`
 
 ## Project Structure

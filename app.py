@@ -117,7 +117,7 @@ def load_xgboost_model():
                 'description': 'XGBoost model with Miami-specific feature engineering',
                 'features': ['distance', 'location', 'time_patterns', 'traffic_level', 'weather', 
                            'miami_airports', 'miami_beaches', 'miami_downtown'],
-                'services': ['UberX', 'UberXL', 'Uber Premier', 'Premier SUV'],
+                'services': ['PREMIER', 'SUV_PREMIER', 'UBERX', 'UBERXL'],
                 'training_samples': 28531,
                 'model_location': 'xgboost_miami_model.pkl'
             }
@@ -248,10 +248,10 @@ def predict():
                 return jsonify({
                     'success': True,
                     'predictions': {
-                        'UberX': round(base_price, 2),
-                        'UberXL': round(base_price * 1.55, 2),
-                        'Uber Premier': round(base_price * 2.0, 2),
-                        'Premier SUV': round(base_price * 2.64, 2)
+                        'PREMIER': round(base_price * 2.0, 2),
+                        'SUV_PREMIER': round(base_price * 2.64, 2),
+                        'UBERX': round(base_price, 2),
+                        'UBERXL': round(base_price * 1.55, 2)
                     },
                     'request_details': {
                         'distance_miles': round(distance_km * 0.621371, 1),
@@ -270,10 +270,10 @@ def predict():
             return jsonify({
                 'success': True,
                 'predictions': {
-                    'UberX': round(base_price, 2),
-                    'UberXL': round(base_price * 1.55, 2),
-                    'Uber Premier': round(base_price * 2.0, 2),
-                    'Premier SUV': round(base_price * 2.64, 2)
+                    'PREMIER': round(base_price * 2.0, 2),
+                    'SUV_PREMIER': round(base_price * 2.64, 2),
+                    'UBERX': round(base_price, 2),
+                    'UBERXL': round(base_price * 1.55, 2)
                 },
                 'request_details': {
                     'distance_miles': round(distance_km * 0.621371, 1),
@@ -347,10 +347,10 @@ def predict_batch():
                         results.append({
                             'ride_index': i + 1,
                             'predictions': {
-                                'UberX': round(base_price, 2),
-                                'UberXL': round(base_price * 1.55, 2),
-                                'Uber Premier': round(base_price * 2.0, 2),
-                                'Premier SUV': round(base_price * 2.64, 2)
+                                'PREMIER': round(base_price * 2.0, 2),
+                                'SUV_PREMIER': round(base_price * 2.64, 2),
+                                'UBERX': round(base_price, 2),
+                                'UBERXL': round(base_price * 1.55, 2)
                             },
                             'distance_km': round(distance_km, 1)
                         })
@@ -360,10 +360,10 @@ def predict_batch():
                     results.append({
                         'ride_index': i + 1,
                         'predictions': {
-                            'UberX': round(base_price, 2),
-                            'UberXL': round(base_price * 1.55, 2),
-                            'Uber Premier': round(base_price * 2.0, 2),
-                            'Premier SUV': round(base_price * 2.64, 2)
+                            'PREMIER': round(base_price * 2.0, 2),
+                            'SUV_PREMIER': round(base_price * 2.64, 2),
+                            'UBERX': round(base_price, 2),
+                            'UBERXL': round(base_price * 1.55, 2)
                         },
                         'distance_km': round(distance_km, 1)
                     })

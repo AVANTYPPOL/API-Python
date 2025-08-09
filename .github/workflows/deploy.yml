@@ -50,7 +50,7 @@ jobs:
                 dropoff_lat=25.7907,
                 dropoff_lng=-80.1300
             )
-            assert 'UberX' in predictions
+            assert 'UBERX' in predictions
             print('✅ XGBoost prediction works')
             print(f'Sample prediction: {predictions}')
         else:
@@ -161,7 +161,7 @@ jobs:
                 dropoff_lat=25.7907,
                 dropoff_lng=-80.1300
             )
-            assert 'UberX' in predictions
+            assert 'UBERX' in predictions
             print('✅ XGBoost prediction works')
         else:
             print('⚠️  Model not loaded, but API initialized successfully')
