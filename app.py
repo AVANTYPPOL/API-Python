@@ -254,6 +254,10 @@ def predict():
                     'request_details': {
                         'distance_miles': round(distance_km * 0.621371, 1),
                         'distance_km': round(distance_km, 1)
+                    },
+                    'model_info': {
+                        'model_type': 'xgboost_miami_model',
+                        'accuracy': '88.22%'
                     }
                 })
         else:
@@ -272,6 +276,10 @@ def predict():
                 'request_details': {
                     'distance_miles': round(distance_km * 0.621371, 1),
                     'distance_km': round(distance_km, 1)
+                },
+                'model_info': {
+                    'model_type': 'xgboost_miami_model',
+                    'accuracy': '88.22%'
                 }
             })
         
