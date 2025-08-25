@@ -8,14 +8,16 @@ import math
 import psutil  # For memory monitoring
 import time
 
-# Import XGBoost API at top level to catch import errors early
+# Import XGBoost API and ModelManager at top level to catch import errors early
 try:
     from xgboost_pricing_api import XGBoostPricingAPI
+    from model_manager import model_manager
     XGBOOST_AVAILABLE = True
-    print("✅ XGBoost API imported successfully - v2.0")
+    print("✅ XGBoost API and ModelManager imported successfully - v2.1")
 except ImportError as e:
-    print(f"❌ XGBoost import failed: {e}")
+    print(f"❌ XGBoost or ModelManager import failed: {e}")
     XGBOOST_AVAILABLE = False
+    model_manager = None
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -24,11 +26,14 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
-# Global variables
+# Global variables (legacy compatibility)
 pricing_model = None
 model_info = {}
 model_loaded = False
 model_loading = False
+
+# Enhanced model management
+USE_MODEL_MANAGER = model_manager is not None
 
 def haversine_distance(lat1, lng1, lat2, lng2):
     """Calculate distance between two coordinates using Haversine formula"""
@@ -45,8 +50,17 @@ def haversine_distance(lat1, lng1, lat2, lng2):
     return distance
 
 def load_xgboost_model():
-    """Load the XGBoost ML model with lazy loading"""
+    """Load the XGBoost ML model with enhanced version tracking"""
     global pricing_model, model_info, model_loaded, model_loading
+    
+    # Use ModelManager if available
+    if USE_MODEL_MANAGER:
+        success = model_manager.load_model()
+        if success:
+            pricing_model = model_manager.model
+            model_info = model_manager.get_api_model_info()
+            model_loaded = True
+        return success
     
     # Prevent multiple simultaneous loading attempts
     if model_loading:
@@ -155,18 +169,26 @@ def health_check():
         logger.info("🔄 Health check triggered - attempting to load model...")
         load_xgboost_model()
     
-    return jsonify({
+    # Enhanced health info with version tracking
+    health_response = {
         'status': 'healthy',
         'version': '1.0.0',
         'model_loaded': model_loaded,
         'model_info': model_info,
         'api_name': 'XGBoost Miami Pricing API'
-    })
+    }
+    
+    # Add version tracking info if available (for monitoring)
+    if USE_MODEL_MANAGER and model_manager.is_loaded:
+        deployment_info = model_manager.get_deployment_summary()
+        health_response['deployment_info'] = deployment_info
+    
+    return jsonify(health_response)
 
 @app.route('/model/info', methods=['GET'])
 def model_info_endpoint():
-    """Model information endpoint"""
-    return jsonify({
+    """Model information endpoint with enhanced version tracking"""
+    base_response = {
         'model_info': model_info,
         'model_loaded': pricing_model is not None,
         'version': '1.0.0',
@@ -177,7 +199,15 @@ def model_info_endpoint():
             'multi_service': True,
             'competitive_pricing': True
         }
-    })
+    }
+    
+    # Add enhanced tracking info if available (for monitoring)
+    if USE_MODEL_MANAGER:
+        enhanced_info = model_manager.get_model_info()
+        base_response['version_tracking'] = enhanced_info['internal_info']
+        base_response['deployment_summary'] = model_manager.get_deployment_summary()
+    
+    return jsonify(base_response)
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -215,8 +245,21 @@ def predict():
         # Calculate distance
         distance_km = haversine_distance(pickup_lat, pickup_lng, dropoff_lat, dropoff_lng)
         
-        if pricing_model and hasattr(pricing_model, 'predict_all_services'):
-            # Get prediction from XGBoost model - only coordinates needed!
+        # Use ModelManager for predictions if available
+        if USE_MODEL_MANAGER and model_manager.is_model_loaded():
+            try:
+                predictions = model_manager.predict_all_services(
+                    pickup_lat=pickup_lat,
+                    pickup_lng=pickup_lng,
+                    dropoff_lat=dropoff_lat,
+                    dropoff_lng=dropoff_lng
+                )
+            except Exception as e:
+                logger.error(f"ModelManager prediction error: {e}")
+                # Fallback to legacy model
+                pricing_model = None
+        elif pricing_model and hasattr(pricing_model, 'predict_all_services'):
+            # Legacy model prediction path
             try:
                 predictions = pricing_model.predict_all_services(
                     pickup_lat=pickup_lat,
@@ -320,8 +363,21 @@ def predict_batch():
                 
                 distance_km = haversine_distance(pickup_lat, pickup_lng, dropoff_lat, dropoff_lng)
                 
-                if pricing_model:
-                    # Get predictions for all services - only coordinates needed!
+                # Use ModelManager for batch predictions if available
+                if USE_MODEL_MANAGER and model_manager.is_model_loaded():
+                    try:
+                        predictions = model_manager.predict_all_services(
+                            pickup_lat=pickup_lat,
+                            pickup_lng=pickup_lng,
+                            dropoff_lat=dropoff_lat,
+                            dropoff_lng=dropoff_lng
+                        )
+                    except Exception as e:
+                        logger.error(f"ModelManager batch prediction error for ride {i+1}: {e}")
+                        # Fallback to simple pricing
+                        predictions = None
+                elif pricing_model:
+                    # Legacy model prediction path
                     try:
                         predictions = pricing_model.predict_all_services(
                             pickup_lat=pickup_lat,

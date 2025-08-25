@@ -1,0 +1,291 @@
+name: Deploy New ML Model
+
+on:
+  repository_dispatch:
+    types: [deploy_new_model]
+
+jobs:
+  deploy-model:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install google-cloud-storage joblib scikit-learn xgboost numpy
+
+      - name: Set up Google Cloud credentials
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Download new model
+        run: |
+          echo "🚀 Downloading model version: ${{ github.event.client_payload.model_version }}"
+          
+          # Create models directory if it doesn't exist
+          mkdir -p models
+          
+          # Download the new model from cloud storage
+          gsutil cp "${{ github.event.client_payload.cloud_storage_path }}" models/hybrid_model.joblib
+          
+          # Download metadata
+          gsutil cp gs://${{ secrets.MODEL_BUCKET }}/models/metadata/current_deployment.json models/model_metadata.json
+          
+          echo "✅ Model files downloaded successfully"
+
+      - name: Convert and validate model format
+        run: |
+          python3 - <<'EOF'
+          import joblib
+          import json
+          import os
+          
+          # Load the hybrid model
+          print("🔄 Loading hybrid model...")
+          hybrid_model = joblib.load('models/hybrid_model.joblib')
+          print(f"✅ Hybrid model loaded: {type(hybrid_model)}")
+          
+          # Save in the expected format for our API
+          print("🔄 Converting to API format...")
+          joblib.dump(hybrid_model, 'xgboost_miami_model.pkl')
+          print("✅ Model saved as xgboost_miami_model.pkl")
+          
+          # Load metadata
+          with open('models/model_metadata.json', 'r') as f:
+              metadata = json.load(f)
+          
+          print(f"📋 Model version: {metadata['model_version']}")
+          print(f"📊 Validation MAE: {metadata['validation_metrics']['validation_mae']}")
+          print(f"📈 Validation accuracy: {metadata['validation_metrics']['validation_accuracy']}")
+          
+          # Test model loading with our API
+          print("🧪 Testing model with existing API...")
+          try:
+              from xgboost_pricing_api import XGBoostPricingAPI
+              api = XGBoostPricingAPI('xgboost_miami_model.pkl')
+              
+              if api.is_loaded:
+                  # Test prediction
+                  test_prediction = api.predict_all_services(
+                      pickup_lat=25.7617,
+                      pickup_lng=-80.1918,
+                      dropoff_lat=25.7907,
+                      dropoff_lng=-80.1300
+                  )
+                  print(f"✅ Test prediction successful: {test_prediction}")
+                  
+                  # Verify all required services are present
+                  required_services = ['PREMIER', 'SUV_PREMIER', 'UBERX', 'UBERXL']
+                  missing_services = [s for s in required_services if s not in test_prediction]
+                  
+                  if missing_services:
+                      raise Exception(f"❌ Missing services: {missing_services}")
+                  
+                  print("✅ All required services present in prediction")
+              else:
+                  raise Exception("❌ Model failed to load in API")
+                  
+          except Exception as e:
+              print(f"❌ Model validation failed: {e}")
+              exit(1)
+          EOF
+
+      - name: Create model version info
+        run: |
+          # Create version file with deployment info
+          cat > .env.model <<EOF
+          MODEL_VERSION=${{ github.event.client_payload.model_version }}
+          DEPLOYMENT_TIMESTAMP=${{ github.event.client_payload.deployment_timestamp }}
+          VALIDATION_MAE=${{ github.event.client_payload.validation_metrics.validation_mae }}
+          VALIDATION_ACCURACY=${{ github.event.client_payload.validation_metrics.validation_accuracy }}
+          TRAINING_SAMPLES=${{ github.event.client_payload.validation_metrics.training_samples }}
+          DEPLOYMENT_TRIGGER=auto_retraining
+          SCRAPER_COMMIT=${{ github.event.client_payload.scraper_repo_commit }}
+          EOF
+          
+          echo "📝 Model version info created:"
+          cat .env.model
+
+      - name: Validate deployment in staging
+        run: |
+          echo "🧪 Testing model before committing changes..."
+          
+          # Start the API locally for validation
+          python3 app.py &
+          API_PID=$!
+          
+          # Wait for API to start
+          sleep 10
+          
+          # Test health endpoint
+          HEALTH_RESPONSE=$(curl -s http://localhost:5000/health || echo "{}")
+          echo "Health response: $HEALTH_RESPONSE"
+          
+          # Test prediction endpoint
+          PREDICTION_RESPONSE=$(curl -s -X POST http://localhost:5000/predict \
+            -H "Content-Type: application/json" \
+            -d '{
+              "pickup_latitude": 25.7617,
+              "pickup_longitude": -80.1918,
+              "dropoff_latitude": 25.7907,
+              "dropoff_longitude": -80.1300
+            }' || echo "{}")
+          
+          echo "Prediction response: $PREDICTION_RESPONSE"
+          
+          # Kill the test API
+          kill $API_PID || true
+          
+          # Verify response format
+          if echo "$PREDICTION_RESPONSE" | grep -q "UBERX" && echo "$PREDICTION_RESPONSE" | grep -q "PREMIER"; then
+            echo "✅ API validation successful - proceeding with deployment"
+          else
+            echo "❌ API validation failed - aborting deployment"
+            exit 1
+          fi
+
+      - name: Commit new model
+        run: |
+          echo "✅ Validation passed - committing model changes"
+          
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action - Model Deployment"
+          
+          git add xgboost_miami_model.pkl
+          git add models/model_metadata.json
+          git add .env.model
+          
+          git commit -m "Deploy ML model ${{ github.event.client_payload.model_version }}
+          
+          🤖 Auto-deployment from scraper repository retraining system
+          
+          📊 Model Performance:
+          - Version: ${{ github.event.client_payload.model_version }}
+          - Validation MAE: ${{ github.event.client_payload.validation_metrics.validation_mae }}
+          - Validation Accuracy: ${{ github.event.client_payload.validation_metrics.validation_accuracy }}
+          - Training Samples: ${{ github.event.client_payload.validation_metrics.training_samples }}
+          
+          🔄 Deployment Details:
+          - Triggered by: Auto retraining pipeline  
+          - Deployment timestamp: ${{ github.event.client_payload.deployment_timestamp }}
+          - Scraper commit: ${{ github.event.client_payload.scraper_repo_commit }}
+          
+          ✅ Model validated and ready for production deployment"
+
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy to Google Cloud Run
+        run: |
+          echo "🚀 Deploying updated model to Google Cloud Run..."
+          
+          # This triggers your existing deployment workflow
+          # The model file has been updated, so Cloud Run will pick up the new model
+          gcloud run deploy rideshare-pricing-api \
+            --source . \
+            --platform managed \
+            --region us-central1 \
+            --allow-unauthenticated \
+            --set-env-vars="GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }},WEATHER_API_KEY=${{ secrets.WEATHER_API_KEY }}" \
+            --memory 2Gi \
+            --cpu 2 \
+            --timeout 300 \
+            --max-instances 10 \
+            --quiet
+
+      - name: Test deployed model
+        run: |
+          echo "🧪 Testing deployed model..."
+          
+          # Get service URL
+          SERVICE_URL=$(gcloud run services describe rideshare-pricing-api --platform managed --region us-central1 --format 'value(status.url)')
+          echo "🌐 Service URL: $SERVICE_URL"
+          
+          # Wait for deployment to complete with retries
+          echo "⏳ Waiting for deployment propagation..."
+          for i in {1..6}; do
+            echo "Attempt $i/6..."
+            sleep 30
+            
+            # Test if service is responsive
+            if curl -f -s "$SERVICE_URL/health" > /dev/null 2>&1; then
+              echo "✅ Service is responding"
+              break
+            fi
+            
+            if [ $i -eq 6 ]; then
+              echo "❌ Service failed to respond after 3 minutes"
+              exit 1
+            fi
+          done
+          
+          # Test health endpoint
+          echo "🩺 Testing health endpoint..."
+          HEALTH_RESPONSE=$(curl -s "$SERVICE_URL/health")
+          echo "Health response: $HEALTH_RESPONSE"
+          
+          # Test prediction endpoint
+          echo "🔮 Testing prediction endpoint..."
+          PREDICTION_RESPONSE=$(curl -s -X POST "$SERVICE_URL/predict" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "pickup_latitude": 25.7617,
+              "pickup_longitude": -80.1918,
+              "dropoff_latitude": 25.7907,
+              "dropoff_longitude": -80.1300
+            }')
+          
+          echo "Prediction response: $PREDICTION_RESPONSE"
+          
+          # Verify response contains all required services
+          if echo "$PREDICTION_RESPONSE" | grep -q "UBERX" && echo "$PREDICTION_RESPONSE" | grep -q "PREMIER"; then
+            echo "✅ Deployment test successful - all services present"
+          else
+            echo "❌ Deployment test failed - missing required services"
+            exit 1
+          fi
+
+      - name: Create deployment summary
+        run: |
+          SERVICE_URL=$(gcloud run services describe rideshare-pricing-api --platform managed --region us-central1 --format 'value(status.url)')
+          
+          echo "## 🎉 Model Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Model Version:** ${{ github.event.client_payload.model_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Service URL:** $SERVICE_URL" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployment Time:** ${{ github.event.client_payload.deployment_timestamp }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Model Performance" >> $GITHUB_STEP_SUMMARY
+          echo "- **Validation MAE:** ${{ github.event.client_payload.validation_metrics.validation_mae }}" >> $GITHUB_STEP_SUMMARY  
+          echo "- **Validation Accuracy:** ${{ github.event.client_payload.validation_metrics.validation_accuracy }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Training Samples:** ${{ github.event.client_payload.validation_metrics.training_samples }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🧪 Quick Test" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "curl $SERVICE_URL/predict \\" >> $GITHUB_STEP_SUMMARY
+          echo '  -X POST -H "Content-Type: application/json" \' >> $GITHUB_STEP_SUMMARY
+          echo '  -d '"'"'{"pickup_latitude": 25.7617, "pickup_longitude": -80.1918, "dropoff_latitude": 25.7907, "dropoff_longitude": -80.1300}'"'"'' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify deployment status
+        run: |
+          echo "🎉 Model ${{ github.event.client_payload.model_version }} deployed successfully!"
+          echo "📊 Performance metrics:"
+          echo "   MAE: ${{ github.event.client_payload.validation_metrics.validation_mae }}"
+          echo "   Accuracy: ${{ github.event.client_payload.validation_metrics.validation_accuracy }}"
+          echo "   Training Samples: ${{ github.event.client_payload.validation_metrics.training_samples }}"
+          echo ""
+          echo "🚀 Model is now live in production!"
