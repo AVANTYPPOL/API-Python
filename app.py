@@ -35,8 +35,27 @@ model_loading = False
 # Enhanced model management
 USE_MODEL_MANAGER = model_manager is not None
 
+# Performance optimization: Cache for distance calculations
+distance_cache = {}
+
+# Price adjustment: 20% discount for clients
+PRICE_DISCOUNT = 0.20  # 20% discount
+
+def apply_price_discount(predictions):
+    """Apply 20% discount to all price predictions"""
+    discounted = {}
+    for service, price in predictions.items():
+        discounted[service] = round(float(price) * (1 - PRICE_DISCOUNT), 2)
+    return discounted
+
 def haversine_distance(lat1, lng1, lat2, lng2):
-    """Calculate distance between two coordinates using Haversine formula"""
+    """Calculate distance between two coordinates with caching for performance"""
+    # Create cache key with rounded coordinates for caching
+    cache_key = (round(lat1, 4), round(lng1, 4), round(lat2, 4), round(lng2, 4))
+    
+    if cache_key in distance_cache:
+        return distance_cache[cache_key]
+    
     R = 6371  # Earth's radius in kilometers
     
     lat1, lng1, lat2, lng2 = map(math.radians, [lat1, lng1, lat2, lng2])
@@ -46,6 +65,10 @@ def haversine_distance(lat1, lng1, lat2, lng2):
     a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlng/2)**2
     c = 2 * math.asin(math.sqrt(a))
     distance = R * c
+    
+    # Cache the result (limit cache size to prevent memory issues)
+    if len(distance_cache) < 1000:
+        distance_cache[cache_key] = distance
     
     return distance
 
@@ -254,6 +277,21 @@ def predict():
                     dropoff_lat=dropoff_lat,
                     dropoff_lng=dropoff_lng
                 )
+                
+                # Apply 20% discount and return
+                discounted_predictions = apply_price_discount(predictions)
+                return jsonify({
+                    'success': True,
+                    'predictions': discounted_predictions,
+                    'request_details': {
+                        'distance_miles': round(distance_km * 0.621371, 1),
+                        'distance_km': round(distance_km, 1)
+                    },
+                    'model_info': {
+                        'model_type': 'xgboost_miami_model',
+                        'accuracy': '88.22%'
+                    }
+                })
             except Exception as e:
                 logger.error(f"ModelManager prediction error: {e}")
                 # Fallback to legacy model
@@ -268,10 +306,11 @@ def predict():
                     dropoff_lng=dropoff_lng
                 )
                 
-                # Always return all service predictions
+                # Apply 20% discount and return all service predictions
+                discounted_predictions = apply_price_discount(predictions)
                 return jsonify({
                     'success': True,
-                    'predictions': predictions,  # All 4 services
+                    'predictions': discounted_predictions,  # All 4 services with 20% discount
                     'request_details': {
                         'distance_miles': round(distance_km * 0.621371, 1),
                         'distance_km': round(distance_km, 1)
@@ -286,16 +325,18 @@ def predict():
                 logger.error(f"Model prediction error: {e}")
                 # Fallback to simple pricing
                 base_price = 2.50 + (distance_km * 1.65)
+                fallback_predictions = {
+                    'PREMIER': round(base_price * 2.0, 2),
+                    'SUV_PREMIER': round(base_price * 2.64, 2),
+                    'UBERX': round(base_price, 2),
+                    'UBERXL': round(base_price * 1.55, 2)
+                }
                 
-                # Always return all services with fallback pricing
+                # Apply 20% discount to fallback pricing
+                discounted_fallback = apply_price_discount(fallback_predictions)
                 return jsonify({
                     'success': True,
-                    'predictions': {
-                        'PREMIER': round(base_price * 2.0, 2),
-                        'SUV_PREMIER': round(base_price * 2.64, 2),
-                        'UBERX': round(base_price, 2),
-                        'UBERXL': round(base_price * 1.55, 2)
-                    },
+                    'predictions': discounted_fallback,
                     'request_details': {
                         'distance_miles': round(distance_km * 0.621371, 1),
                         'distance_km': round(distance_km, 1)
@@ -308,16 +349,18 @@ def predict():
         else:
             # Fallback pricing when model not loaded
             base_price = 2.50 + (distance_km * 1.65)
+            fallback_predictions = {
+                'PREMIER': round(base_price * 2.0, 2),
+                'SUV_PREMIER': round(base_price * 2.64, 2),
+                'UBERX': round(base_price, 2),
+                'UBERXL': round(base_price * 1.55, 2)
+            }
             
-            # Always return all services
+            # Apply 20% discount to fallback pricing
+            discounted_fallback = apply_price_discount(fallback_predictions)
             return jsonify({
                 'success': True,
-                'predictions': {
-                    'PREMIER': round(base_price * 2.0, 2),
-                    'SUV_PREMIER': round(base_price * 2.64, 2),
-                    'UBERX': round(base_price, 2),
-                    'UBERXL': round(base_price * 1.55, 2)
-                },
+                'predictions': discounted_fallback,
                 'request_details': {
                     'distance_miles': round(distance_km * 0.621371, 1),
                     'distance_km': round(distance_km, 1)
@@ -386,13 +429,14 @@ def predict_batch():
                             dropoff_lng=dropoff_lng
                         )
                         
-                        # Round predictions
+                        # Round predictions and apply 20% discount
                         for service in predictions:
                             predictions[service] = round(predictions[service], 2)
+                        discounted_predictions = apply_price_discount(predictions)
                         
                         results.append({
                             'ride_index': i + 1,
-                            'predictions': predictions,
+                            'predictions': discounted_predictions,
                             'distance_km': round(distance_km, 1),
                             'distance_miles': round(distance_km * 0.621371, 1)
                         })
@@ -400,27 +444,31 @@ def predict_batch():
                     except Exception as e:
                         logger.error(f"Batch prediction error for ride {i+1}: {e}")
                         base_price = 2.50 + (distance_km * 1.65)
-                        results.append({
-                            'ride_index': i + 1,
-                            'predictions': {
-                                'PREMIER': round(base_price * 2.0, 2),
-                                'SUV_PREMIER': round(base_price * 2.64, 2),
-                                'UBERX': round(base_price, 2),
-                                'UBERXL': round(base_price * 1.55, 2)
-                            },
-                            'distance_km': round(distance_km, 1)
-                        })
-                else:
-                    # Fallback pricing
-                    base_price = 2.50 + (distance_km * 1.65)
-                    results.append({
-                        'ride_index': i + 1,
-                        'predictions': {
+                        fallback_predictions = {
                             'PREMIER': round(base_price * 2.0, 2),
                             'SUV_PREMIER': round(base_price * 2.64, 2),
                             'UBERX': round(base_price, 2),
                             'UBERXL': round(base_price * 1.55, 2)
-                        },
+                        }
+                        discounted_fallback = apply_price_discount(fallback_predictions)
+                        results.append({
+                            'ride_index': i + 1,
+                            'predictions': discounted_fallback,
+                            'distance_km': round(distance_km, 1)
+                        })
+                else:
+                    # Fallback pricing when no model available
+                    base_price = 2.50 + (distance_km * 1.65)
+                    fallback_predictions = {
+                        'PREMIER': round(base_price * 2.0, 2),
+                        'SUV_PREMIER': round(base_price * 2.64, 2),
+                        'UBERX': round(base_price, 2),
+                        'UBERXL': round(base_price * 1.55, 2)
+                    }
+                    discounted_fallback = apply_price_discount(fallback_predictions)
+                    results.append({
+                        'ride_index': i + 1,
+                        'predictions': discounted_fallback,
                         'distance_km': round(distance_km, 1)
                     })
                     
