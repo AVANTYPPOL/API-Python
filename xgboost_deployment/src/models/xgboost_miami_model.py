@@ -17,27 +17,49 @@ Date: 2025
 
 import pandas as pd
 import numpy as np
-import sqlite3
+import os
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 import xgboost as xgb
 import joblib
 import warnings
+from dotenv import load_dotenv
 warnings.filterwarnings('ignore')
+
+# Load environment variables
+load_dotenv()
+
+# Database connection
+try:
+    import psycopg2
+    DB_AVAILABLE = True
+except ImportError:
+    DB_AVAILABLE = False
+    print("⚠️ psycopg2 not available - database operations disabled")
 
 class XGBoostMiamiModel:
     """
     XGBoost model for Miami multi-service Uber pricing
     """
     
-    def __init__(self, db_path='uber_ml_data.db'):
-        self.db_path = db_path
+    def __init__(self, db_path=None):
+        # PostgreSQL connection parameters from environment
+        self.db_config = {
+            'host': os.getenv('DB_HOST', '127.0.0.1'),
+            'port': os.getenv('DB_PORT', '6546'),
+            'database': os.getenv('DB_NAME', 'appdb'),
+            'user': os.getenv('DB_USER', 'appuser'),
+            'password': os.getenv('DB_PASSWORD', '')
+        }
+        self.db_type = os.getenv('DB_TYPE', 'postgresql')
+        self.db_path = db_path  # For backward compatibility with SQLite
+
         self.model = None
         self.label_encoders = {}
         self.feature_columns = None
         self.is_trained = False
-        
+
         # Service type multipliers based on data analysis
         self.service_multipliers = {
             'UBERX': 1.0,
@@ -45,15 +67,26 @@ class XGBoostMiamiModel:
             'PREMIER': 1.8,
             'SUV_PREMIER': 2.2
         }
-        
+
     def load_data(self):
         """Load data from ride_services table"""
-        print("📊 Loading Miami ride_services data...")
-        
-        conn = sqlite3.connect(self.db_path)
-        
+        print(f"📊 Loading Miami ride_services data from {self.db_type}...")
+
+        if self.db_type == 'postgresql':
+            if not DB_AVAILABLE:
+                raise ImportError("psycopg2 is required for PostgreSQL. Install with: pip install psycopg2-binary")
+
+            # Connect to PostgreSQL
+            conn = psycopg2.connect(**self.db_config)
+            print(f"✅ Connected to PostgreSQL: {self.db_config['database']}@{self.db_config['host']}:{self.db_config['port']}")
+        else:
+            # Fallback to SQLite for backward compatibility
+            import sqlite3
+            conn = sqlite3.connect(self.db_path or 'uber_ml_data.db')
+            print(f"✅ Connected to SQLite: {self.db_path or 'uber_ml_data.db'}")
+
         query = """
-        SELECT 
+        SELECT
             pickup_lat,
             pickup_lng,
             dropoff_lat,
@@ -66,18 +99,18 @@ class XGBoostMiamiModel:
             traffic_level,
             weather_condition
         FROM ride_services
-        WHERE price_usd > 0 
+        WHERE price_usd > 0
         AND distance_km > 0
         """
-        
+
         df = pd.read_sql_query(query, conn)
         conn.close()
-        
+
         print(f"✅ Loaded {len(df):,} ride records")
         print(f"   Service types: {df['service_type'].unique()}")
         print(f"   Average price: ${df['price_usd'].mean():.2f}")
         print(f"   Price range: ${df['price_usd'].min():.2f} - ${df['price_usd'].max():.2f}")
-        
+
         return df
     
     def engineer_features(self, df):

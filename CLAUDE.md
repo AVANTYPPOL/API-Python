@@ -207,10 +207,11 @@ Optional environment variables (in .env file):
 ## Model Information
 
 - **Model Type:** XGBoost Multi-Service Predictor
-- **Accuracy:** 88.22% (R² score)
-- **Training Data:** 28,531 Miami rides
+- **Accuracy:** 89.01% (R² score)
+- **Training Data:** 87,365 Miami rides (PostgreSQL Cloud SQL)
 - **Services:** PREMIER, SUV_PREMIER, UBERX, UBERXL
 - **Model File:** `xgboost_miami_model.pkl`
+- **Database:** PostgreSQL on Google Cloud SQL
 
 ## Project Structure
 

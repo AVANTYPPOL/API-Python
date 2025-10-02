@@ -17,13 +17,24 @@ Date: 2025
 
 import pandas as pd
 import numpy as np
-import sqlite3
 import os
 import json
 import xgboost as xgb
 import joblib
 import warnings
+from dotenv import load_dotenv
 warnings.filterwarnings('ignore')
+
+# Load environment variables
+load_dotenv()
+
+# Database connection
+try:
+    import psycopg2
+    DB_AVAILABLE = True
+except ImportError:
+    DB_AVAILABLE = False
+    print("⚠️ psycopg2 not available - database operations disabled")
 
 # Import sklearn modules only when needed (for training)
 try:
@@ -42,13 +53,23 @@ class XGBoostMiamiModel:
     XGBoost model for Miami multi-service Uber pricing
     """
     
-    def __init__(self, db_path='uber_ml_data.db'):
-        self.db_path = db_path
+    def __init__(self, db_path=None):
+        # PostgreSQL connection parameters from environment
+        self.db_config = {
+            'host': os.getenv('DB_HOST', '127.0.0.1'),
+            'port': os.getenv('DB_PORT', '6546'),
+            'database': os.getenv('DB_NAME', 'appdb'),
+            'user': os.getenv('DB_USER', 'appuser'),
+            'password': os.getenv('DB_PASSWORD', '')
+        }
+        self.db_type = os.getenv('DB_TYPE', 'postgresql')
+        self.db_path = db_path  # For backward compatibility with SQLite
+
         self.model = None
         self.label_encoders = {}
         self.feature_columns = None
         self.is_trained = False
-        
+
         # Service type multipliers based on data analysis
         self.service_multipliers = {
             'UBERX': 1.0,
@@ -59,12 +80,23 @@ class XGBoostMiamiModel:
         
     def load_data(self):
         """Load data from ride_services table"""
-        print("📊 Loading Miami ride_services data...")
-        
-        conn = sqlite3.connect(self.db_path)
-        
+        print(f"Loading Miami ride_services data from {self.db_type}...")
+
+        if self.db_type == 'postgresql':
+            if not DB_AVAILABLE:
+                raise ImportError("psycopg2 is required for PostgreSQL. Install with: pip install psycopg2-binary")
+
+            # Connect to PostgreSQL
+            conn = psycopg2.connect(**self.db_config)
+            print(f"[OK] Connected to PostgreSQL: {self.db_config['database']}@{self.db_config['host']}:{self.db_config['port']}")
+        else:
+            # Fallback to SQLite for backward compatibility
+            import sqlite3
+            conn = sqlite3.connect(self.db_path or 'uber_ml_data.db')
+            print(f"[OK] Connected to SQLite: {self.db_path or 'uber_ml_data.db'}")
+
         query = """
-        SELECT 
+        SELECT
             pickup_lat,
             pickup_lng,
             dropoff_lat,
@@ -77,18 +109,18 @@ class XGBoostMiamiModel:
             traffic_level,
             weather_condition
         FROM ride_services
-        WHERE price_usd > 0 
+        WHERE price_usd > 0
         AND distance_km > 0
         """
-        
+
         df = pd.read_sql_query(query, conn)
         conn.close()
-        
-        print(f"✅ Loaded {len(df):,} ride records")
+
+        print(f"[OK] Loaded {len(df):,} ride records")
         print(f"   Service types: {df['service_type'].unique()}")
         print(f"   Average price: ${df['price_usd'].mean():.2f}")
         print(f"   Price range: ${df['price_usd'].min():.2f} - ${df['price_usd'].max():.2f}")
-        
+
         return df
     
     def engineer_features(self, df):
@@ -230,7 +262,7 @@ class XGBoostMiamiModel:
         if not SKLEARN_AVAILABLE:
             raise ImportError("Scikit-learn is required for training. Install with: pip install scikit-learn")
         
-        print("\n🚀 Training XGBoost Miami Multi-Service Model...")
+        print("\nTraining XGBoost Miami Multi-Service Model...")
         
         # Load and preprocess data
         df = self.load_data()
@@ -242,9 +274,9 @@ class XGBoostMiamiModel:
             X, y, test_size=0.2, random_state=42
         )
         
-        print(f"\n📊 Training set: {len(X_train)} samples")
-        print(f"📊 Test set: {len(X_test)} samples")
-        
+        print(f"\nTraining set: {len(X_train)} samples")
+        print(f"Test set: {len(X_test)} samples")
+
         # XGBoost parameters
         self.model = xgb.XGBRegressor(
             n_estimators=300,
@@ -261,12 +293,12 @@ class XGBoostMiamiModel:
         )
         
         # Cross-validation
-        print("\n🔄 Performing cross-validation...")
+        print("\nPerforming cross-validation...")
         cv_scores = cross_val_score(self.model, X_train, y_train, cv=5, scoring='r2')
-        print(f"   CV R² Score: {cv_scores.mean():.4f} ± {cv_scores.std():.4f}")
-        
+        print(f"   CV R² Score: {cv_scores.mean():.4f} +/- {cv_scores.std():.4f}")
+
         # Train model
-        print("\n📈 Training model...")
+        print("\nTraining model...")
         self.model.fit(X_train, y_train)
         
         # Evaluate on test set
@@ -277,37 +309,37 @@ class XGBoostMiamiModel:
         mae = mean_absolute_error(y_test, y_pred)
         mape = np.mean(np.abs((y_test - y_pred) / y_test)) * 100
         
-        print(f"\n📊 Test Set Performance:")
+        print(f"\nTest Set Performance:")
         print(f"   R² Score: {r2:.4f}")
         print(f"   RMSE: ${rmse:.2f}")
         print(f"   MAE: ${mae:.2f}")
         print(f"   MAPE: {mape:.2f}%")
-        
+
         # Feature importance
         feature_importance = pd.DataFrame({
             'feature': self.feature_columns,
             'importance': self.model.feature_importances_
         }).sort_values('importance', ascending=False)
-        
-        print(f"\n🔝 Top 10 Most Important Features:")
+
+        print(f"\nTop 10 Most Important Features:")
         for idx, row in feature_importance.head(10).iterrows():
             print(f"   {row['feature']}: {row['importance']:.4f}")
         
         # Analyze by service type
-        print(f"\n📊 Performance by Service Type:")
+        print(f"\nPerformance by Service Type:")
         for service in df['service_type'].unique():
             mask = df['service_type'] == service
             X_service = X[mask]
             y_service = y[mask]
             y_pred_service = self.model.predict(X_service)
-            
+
             service_r2 = r2_score(y_service, y_pred_service)
             service_rmse = np.sqrt(mean_squared_error(y_service, y_pred_service))
-            
+
             print(f"   {service}: R²={service_r2:.4f}, RMSE=${service_rmse:.2f}")
-        
+
         self.is_trained = True
-        print("\n✅ Model training complete!")
+        print("\n[OK] Model training complete!")
         
         return self
     
@@ -388,12 +420,12 @@ class XGBoostMiamiModel:
         }
         
         joblib.dump(model_data, filepath)
-        print(f"✅ Model saved to {filepath}")
+        print(f"[OK] Model saved to {filepath}")
     
     def load_model(self, filepath='xgboost_miami_model.pkl'):
         """Load a trained model with numpy version compatibility"""
         # Print numpy version for debugging
-        print(f"🔍 Current numpy version: {np.__version__}")
+        print(f"Current numpy version: {np.__version__}")
         
         # Check if JSON format exists - prefer it for compatibility
         json_filepath = filepath.replace('.pkl', '.json')
@@ -418,20 +450,20 @@ class XGBoostMiamiModel:
                 self.service_multipliers = metadata.get('service_multipliers', self.service_multipliers)
                 self.is_trained = True
                 
-                print("✅ Model loaded from JSON format (maximum compatibility)")
+                print("[OK] Model loaded from JSON format (maximum compatibility)")
                 return
             except Exception as e:
-                print(f"⚠️ JSON loading failed: {e}, trying pickle format...")
+                print(f"[WARNING] JSON loading failed: {e}, trying pickle format...")
         
         try:
             # Try normal joblib load
             model_data = joblib.load(filepath)
         except Exception as e:
             error_str = str(e)
-            print(f"⚠️  Initial load failed: {error_str}")
+            print(f"[WARNING] Initial load failed: {error_str}")
             
             if "numpy._core" in error_str or "numpy.core._multiarray_umath" in error_str:
-                print("🔧 Attempting compatibility fix...")
+                print("Attempting compatibility fix...")
                 
                 # Try multiple approaches
                 try:
@@ -470,13 +502,13 @@ class XGBoostMiamiModel:
                                     obj = xgb
                                     for part in parts[1:]:
                                         obj = getattr(obj, part)
-                                    print(f"✅ Remapped {original_module}.{name} → {xgb_classes[name]}")
+                                    print(f"[OK] Remapped {original_module}.{name} -> {xgb_classes[name]}")
                                     return obj
-                            
+
                             # Handle direct XGBoost module references
                             if module == 'XGBRegressor':
                                 import xgboost as xgb
-                                print(f"✅ Remapped module '{module}' → xgboost.XGBRegressor")
+                                print(f"[OK] Remapped module '{module}' -> xgboost.XGBRegressor")
                                 return xgb.XGBRegressor
                             
                             return super().find_class(module, name)
@@ -485,20 +517,20 @@ class XGBoostMiamiModel:
                     with open(filepath, 'rb') as f:
                         unpickler = NumpyCompatUnpickler(f)
                         model_data = unpickler.load()
-                    
-                    print("✅ Model loaded with compatibility layer")
+
+                    print("[OK] Model loaded with compatibility layer")
                     
                 except Exception as e2:
-                    print(f"❌ Compatibility fix also failed: {e2}")
+                    print(f"[ERROR] Compatibility fix also failed: {e2}")
                     # Last resort - try loading with pickle directly
                     try:
                         with open(filepath, 'rb') as f:
                             model_data = pickle.load(f, encoding='latin1')
-                        print("✅ Model loaded with pickle encoding='latin1'")
+                        print("[OK] Model loaded with pickle encoding='latin1'")
                     except Exception as e3:
                         # Try loading from JSON format if available
                         if json_exists:
-                            print(f"🔄 Attempting to load from JSON format: {json_filepath}")
+                            print(f"Attempting to load from JSON format: {json_filepath}")
                             try:
                                 import xgboost as xgb
                                 # Load XGBoost model from JSON
@@ -513,13 +545,13 @@ class XGBoostMiamiModel:
                                     'feature_columns': None,  # Will be set from model if available
                                     'service_multipliers': self.service_multipliers
                                 }
-                                print("✅ Model loaded from JSON format (limited compatibility mode)")
+                                print("[OK] Model loaded from JSON format (limited compatibility mode)")
                             except Exception as e4:
-                                print(f"❌ JSON loading also failed: {e4}")
-                                print(f"❌ All loading attempts failed")
+                                print(f"[ERROR] JSON loading also failed: {e4}")
+                                print(f"[ERROR] All loading attempts failed")
                                 raise e3
                         else:
-                            print(f"❌ All loading attempts failed")
+                            print(f"[ERROR] All loading attempts failed")
                             raise e3
             else:
                 # Re-raise if it's a different error
@@ -532,17 +564,17 @@ class XGBoostMiamiModel:
         if encoders and isinstance(list(encoders.values())[0] if encoders else None, dict):
             # New format - already dictionaries
             self.label_encoders = encoders
-            print("  📦 Using dictionary-based encoders (no sklearn dependency)")
+            print("  Using dictionary-based encoders (no sklearn dependency)")
         else:
             # Old format - sklearn LabelEncoders
             self.label_encoders = encoders
-            print("  📦 Using sklearn LabelEncoders")
-        
+            print("  Using sklearn LabelEncoders")
+
         self.feature_columns = model_data['feature_columns']
         self.service_multipliers = model_data.get('service_multipliers', self.service_multipliers)
         self.is_trained = True
-        
-        print(f"✅ Model loaded from {filepath}")
+
+        print(f"[OK] Model loaded from {filepath}")
 
 
 if __name__ == "__main__":
@@ -553,11 +585,11 @@ if __name__ == "__main__":
     
     # Test predictions
     print("\n" + "="*70)
-    print("🧪 TESTING PREDICTIONS")
+    print("TESTING PREDICTIONS")
     print("="*70)
-    
+
     # Test route: Miami Airport to South Beach
-    print("\n📍 Route: Miami Airport → South Beach")
+    print("\nRoute: Miami Airport -> South Beach")
     prices = model.predict_all_services(
         pickup_lat=25.7959, pickup_lng=-80.2870,  # Miami Airport
         dropoff_lat=25.7907, dropoff_lng=-80.1300,  # South Beach
@@ -571,7 +603,7 @@ if __name__ == "__main__":
         print(f"   {service}: ${price:.2f}")
     
     # Test route 2: Downtown to Wynwood
-    print("\n📍 Route: Downtown Miami → Wynwood")
+    print("\nRoute: Downtown Miami -> Wynwood")
     prices = model.predict_all_services(
         pickup_lat=25.7617, pickup_lng=-80.1918,  # Downtown
         dropoff_lat=25.8103, dropoff_lng=-80.1934,  # Wynwood
