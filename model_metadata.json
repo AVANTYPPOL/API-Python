@@ -1,8 +1,89 @@
 {
   "label_encoders": {
-    "service_type": "LabelEncoder()",
-    "traffic_level": "LabelEncoder()",
-    "weather_condition": "LabelEncoder()"
+    "service_type": {
+      "class_to_int": {
+        "PREMIER": 0,
+        "SUV_PREMIER": 1,
+        "UBERX": 2,
+        "UBERXL": 3
+      },
+      "int_to_class": {
+        "0": "PREMIER",
+        "1": "SUV_PREMIER",
+        "2": "UBERX",
+        "3": "UBERXL"
+      },
+      "classes": [
+        "PREMIER",
+        "SUV_PREMIER",
+        "UBERX",
+        "UBERXL"
+      ]
+    },
+    "traffic_level": {
+      "class_to_int": {
+        "heavy": 0,
+        "light": 1,
+        "moderate": 2,
+        "unknown": 3,
+        "None": 4
+      },
+      "int_to_class": {
+        "0": "heavy",
+        "1": "light",
+        "2": "moderate",
+        "3": "unknown",
+        "4": "None"
+      },
+      "classes": [
+        "heavy",
+        "light",
+        "moderate",
+        "unknown",
+        "None"
+      ]
+    },
+    "weather_condition": {
+      "class_to_int": {
+        "clear": 0,
+        "clouds": 1,
+        "drizzle": 2,
+        "fog": 3,
+        "haze": 4,
+        "mist": 5,
+        "rain": 6,
+        "smoke": 7,
+        "thunderstorm": 8,
+        "unknown": 9,
+        "None": 10
+      },
+      "int_to_class": {
+        "0": "clear",
+        "1": "clouds",
+        "2": "drizzle",
+        "3": "fog",
+        "4": "haze",
+        "5": "mist",
+        "6": "rain",
+        "7": "smoke",
+        "8": "thunderstorm",
+        "9": "unknown",
+        "10": "None"
+      },
+      "classes": [
+        "clear",
+        "clouds",
+        "drizzle",
+        "fog",
+        "haze",
+        "mist",
+        "rain",
+        "smoke",
+        "thunderstorm",
+        "unknown",
+        "None"
+      ]
+    }
   },
   "feature_columns": [
     "distance_km",
@@ -41,7 +122,7 @@
     "PREMIER": 1.8,
     "SUV_PREMIER": 2.2
   },
-  "training_date": "2025-10-18T00:41:32.322168",
+  "training_date": "2025-10-18T02:29:56.131194",
   "training_samples": 157446,
   "data_date_range": {
     "min": "2025-06-24 03:26:33",
