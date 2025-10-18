@@ -46,7 +46,7 @@ Can and WILL break production applications that parse the API responses. The API
   },
   "model_info": {
     "model_type": "xgboost_miami_model",
-    "accuracy": "88.22%"
+    "accuracy": "90.93%"
   }
 }
 ```
@@ -207,8 +207,9 @@ Optional environment variables (in .env file):
 ## Model Information
 
 - **Model Type:** XGBoost Multi-Service Predictor
-- **Accuracy:** 89.01% (R² score)
-- **Training Data:** 87,365 Miami rides (PostgreSQL Cloud SQL)
+- **Accuracy:** 90.93% (R² score)
+- **Training Data:** 157,446 Miami rides (PostgreSQL Cloud SQL)
+- **Training Date:** October 18, 2025
 - **Services:** PREMIER, SUV_PREMIER, UBERX, UBERXL
 - **Model File:** `xgboost_miami_model.pkl`
 - **Database:** PostgreSQL on Google Cloud SQL

@@ -106,7 +106,7 @@ def load_xgboost_model():
         logger.info("🔄 XGBOOST MIAMI UBER PRICE PREDICTION MODEL")
         logger.info("=" * 70)
         logger.info("🏖️  Miami-Specific Features (Airport, Beach, Downtown)")
-        logger.info("📊 High Accuracy: R² = 0.8822 (88.22%)")
+        logger.info("📊 High Accuracy: R² = 0.9093 (90.93%)")
         logger.info("🚗 Multi-Service Built-in (All 4 Types)")
         logger.info("💰 RMSE: $13.31")
         logger.info("=" * 70)
@@ -144,18 +144,18 @@ def load_xgboost_model():
             logger.info(f"🗺️  Google Maps API: {gmaps_status}")
             logger.info(f"🌤️  Weather API: {weather_status}")
             logger.info("🤖 ML Model: Trained XGBoost model loaded")
-            logger.info("📊 Training Data: 28,531 Miami rides")
+            logger.info("📊 Training Data: 157,446 Miami rides")
             
             model_info = {
                 'model_type': 'xgboost_miami_model',
-                'accuracy': '88.22%',
-                'r2_score': 0.8822,
-                'rmse': '$13.31',
+                'accuracy': '90.93%',
+                'r2_score': 0.9093,
+                'rmse': '$11.38',
                 'description': 'XGBoost model with Miami-specific feature engineering',
                 'features': ['distance', 'location', 'time_patterns', 'traffic_level', 'weather', 
                            'miami_airports', 'miami_beaches', 'miami_downtown'],
                 'services': ['PREMIER', 'SUV_PREMIER', 'UBERX', 'UBERXL'],
-                'training_samples': 28531,
+                'training_samples': 157446,
                 'model_location': 'xgboost_miami_model.pkl'
             }
             
@@ -289,7 +289,7 @@ def predict():
                     },
                     'model_info': {
                         'model_type': 'xgboost_miami_model',
-                        'accuracy': '88.22%'
+                        'accuracy': '90.93%'
                     }
                 })
             except Exception as e:
@@ -343,7 +343,7 @@ def predict():
                     },
                     'model_info': {
                         'model_type': 'xgboost_miami_model',
-                        'accuracy': '88.22%'
+                        'accuracy': '90.93%'
                     }
                 })
         else:

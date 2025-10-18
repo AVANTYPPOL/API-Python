@@ -34,7 +34,7 @@ try:
     DB_AVAILABLE = True
 except ImportError:
     DB_AVAILABLE = False
-    print("⚠️ psycopg2 not available - database operations disabled")
+    print("[WARNING] psycopg2 not available - database operations disabled")
 
 # Import sklearn modules only when needed (for training)
 try:
@@ -44,7 +44,7 @@ try:
     SKLEARN_AVAILABLE = True
 except ImportError:
     SKLEARN_AVAILABLE = False
-    print("⚠️ Scikit-learn not available - training disabled, loading only mode")
+    print("[WARNING] Scikit-learn not available - training disabled, loading only mode")
 
 # Note: numpy compatibility handled in custom unpickler if needed
 
@@ -432,7 +432,7 @@ class XGBoostMiamiModel:
         metadata_filepath = 'model_metadata.json'
         
         if os.path.exists(json_filepath) and os.path.exists(metadata_filepath):
-            print(f"📄 Loading from JSON format for maximum compatibility...")
+            print(f"[JSON] Loading from JSON format for maximum compatibility...")
             try:
                 # Load XGBoost model from JSON
                 import xgboost as xgb

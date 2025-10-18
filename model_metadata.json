@@ -1,4 +1,9 @@
 {
+  "label_encoders": {
+    "service_type": "LabelEncoder()",
+    "traffic_level": "LabelEncoder()",
+    "weather_condition": "LabelEncoder()"
+  },
   "feature_columns": [
     "distance_km",
     "distance_squared",
@@ -36,87 +41,10 @@
     "PREMIER": 1.8,
     "SUV_PREMIER": 2.2
   },
-  "label_encoders": {
-    "service_type": {
-      "classes": [
-        "PREMIER",
-        "SUV_PREMIER",
-        "UBERX",
-        "UBERXL"
-      ],
-      "class_to_int": {
-        "PREMIER": 0,
-        "SUV_PREMIER": 1,
-        "UBERX": 2,
-        "UBERXL": 3
-      },
-      "int_to_class": {
-        "0": "PREMIER",
-        "1": "SUV_PREMIER",
-        "2": "UBERX",
-        "3": "UBERXL"
-      }
-    },
-    "traffic_level": {
-      "classes": [
-        "heavy",
-        "light",
-        "moderate",
-        "unknown",
-        null
-      ],
-      "class_to_int": {
-        "heavy": 0,
-        "light": 1,
-        "moderate": 2,
-        "unknown": 3,
-        "None": 4
-      },
-      "int_to_class": {
-        "0": "heavy",
-        "1": "light",
-        "2": "moderate",
-        "3": "unknown",
-        "4": "None"
-      }
-    },
-    "weather_condition": {
-      "classes": [
-        "clear",
-        "clouds",
-        "drizzle",
-        "fog",
-        "haze",
-        "mist",
-        "rain",
-        "thunderstorm",
-        "unknown",
-        null
-      ],
-      "class_to_int": {
-        "clear": 0,
-        "clouds": 1,
-        "drizzle": 2,
-        "fog": 3,
-        "haze": 4,
-        "mist": 5,
-        "rain": 6,
-        "thunderstorm": 7,
-        "unknown": 8,
-        "None": 9
-      },
-      "int_to_class": {
-        "0": "clear",
-        "1": "clouds",
-        "2": "drizzle",
-        "3": "fog",
-        "4": "haze",
-        "5": "mist",
-        "6": "rain",
-        "7": "thunderstorm",
-        "8": "unknown",
-        "9": "None"
-      }
-    }
+  "training_date": "2025-10-18T00:41:32.322168",
+  "training_samples": 157446,
+  "data_date_range": {
+    "min": "2025-06-24 03:26:33",
+    "max": "2025-10-17 22:01:23.353446+00"
   }
 }
