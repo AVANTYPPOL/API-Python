@@ -64,4 +64,10 @@ logs/
 # Keep only essential model files
 !hybrid_uber_model.pkl
 !production_uber_model.pkl
-!enhanced_uber_model.pkl 
+!enhanced_uber_model.pkl
+!xgboost_miami_model.pkl
+!xgboost_miami_model.json
+!model_metadata.json
+!xgboost_miami_model.py
+!xgboost_pricing_api.py
+!model_manager.py 

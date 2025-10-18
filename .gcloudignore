@@ -91,6 +91,9 @@ docker-compose.dev.yml
 !xgboost_pricing_api.py
 !xgboost_miami_model.py
 !xgboost_miami_model.pkl
+!xgboost_miami_model.json
+!model_metadata.json
+!model_manager.py
 !requirements.txt
 !Dockerfile
 !gunicorn.conf.py
