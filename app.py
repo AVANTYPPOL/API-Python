@@ -38,11 +38,11 @@ USE_MODEL_MANAGER = model_manager is not None
 # Performance optimization: Cache for distance calculations
 distance_cache = {}
 
-# Price adjustment: 20% discount for clients
-PRICE_DISCOUNT = 0.20  # 20% discount
+# Price adjustment: No discount applied
+PRICE_DISCOUNT = 0.0  # No discount
 
 def apply_price_discount(predictions):
-    """Apply 20% discount to all price predictions"""
+    """Apply price adjustment (currently no discount)"""
     discounted = {}
     for service, price in predictions.items():
         discounted[service] = round(float(price) * (1 - PRICE_DISCOUNT), 2)
