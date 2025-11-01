@@ -25,6 +25,9 @@ import warnings
 from dotenv import load_dotenv
 warnings.filterwarnings('ignore')
 
+# Enhanced feature engineering
+from enhanced_features import add_enhanced_features
+
 # Load environment variables
 load_dotenv()
 
@@ -196,7 +199,10 @@ class XGBoostMiamiModel:
         df_eng['distance_service_interaction'] = df_eng['distance_km'] * df_eng['service_numeric']
         df_eng['rush_hour_service_interaction'] = df_eng['is_rush_hour'] * df_eng['service_numeric']
         df_eng['airport_service_interaction'] = df_eng['is_airport_trip'] * df_eng['service_numeric']
-        
+
+        # Enhanced features (surge proxies, location×time interactions, etc.)
+        df_eng = add_enhanced_features(df_eng)
+
         return df_eng
     
     def preprocess_data(self, df):
@@ -238,23 +244,21 @@ class XGBoostMiamiModel:
                     )
         
         # Select features for model
-        feature_cols = [
-            'distance_km', 'distance_squared', 'distance_log', 'distance_sqrt',
-            'pickup_lat', 'pickup_lng', 'dropoff_lat', 'dropoff_lng',
-            'hour_of_day', 'day_of_week',
-            'is_rush_hour', 'is_late_night', 'is_weekend',
-            'pickup_to_airport', 'dropoff_to_airport',
-            'pickup_to_beach', 'dropoff_to_beach',
-            'pickup_to_downtown', 'dropoff_to_downtown',
-            'is_airport_pickup', 'is_airport_dropoff', 'is_airport_trip',
-            'service_type_encoded', 'traffic_level_encoded', 'weather_condition_encoded',
-            'service_numeric', 'distance_service_interaction',
-            'rush_hour_service_interaction', 'airport_service_interaction'
-        ]
-        
+        # Exclude non-feature columns
+        exclude_cols = ['service_type', 'traffic_level', 'weather_condition',
+                       'price_usd', 'created_at', 'id', 'ride_id',
+                       'distance_bucket', 'price_per_km']
+
+        # Use all numeric columns as features (includes enhanced features automatically)
+        feature_cols = [col for col in df_processed.columns
+                       if col not in exclude_cols and
+                       df_processed[col].dtype in ['int64', 'float64', 'int32', 'float32', 'bool']]
+
+        print(f"[INFO] Using {len(feature_cols)} features for training")
+
         X = df_processed[feature_cols]
         y = df_processed['price_usd']
-        
+
         return X, y, feature_cols
     
     def train(self):
