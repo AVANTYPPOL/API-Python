@@ -11,6 +11,8 @@ import os
 import sys
 from dotenv import load_dotenv
 import requests
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 # Try to import googlemaps, but make it optional
 try:
@@ -27,8 +29,14 @@ load_dotenv()
 from xgboost_miami_model import XGBoostMiamiModel
 import joblib
 import numpy as np
-from datetime import datetime
 import pickle
+
+# Miami timezone (Eastern Time - handles EDT/EST automatically)
+MIAMI_TZ = ZoneInfo("America/New_York")
+
+def get_miami_time():
+    """Get current time in Miami timezone (Eastern Time)"""
+    return datetime.now(MIAMI_TZ)
 
 class XGBoostPricingAPI:
     """
@@ -141,7 +149,8 @@ class XGBoostPricingAPI:
                         print(f"   Traffic ratio: {traffic_ratio:.2f}x (normal: {duration_s/60:.1f}min, with traffic: {traffic_duration/60:.1f}min)")
                     else:
                         # Estimate based on time of day if duration_in_traffic not available
-                        hour = datetime.now().hour
+                        miami_time = get_miami_time()
+                        hour = miami_time.hour
                         if hour in [7, 8, 9, 16, 17, 18, 19]:  # Rush hours
                             traffic_level = 'moderate'
                         else:
@@ -205,13 +214,15 @@ class XGBoostPricingAPI:
                 'UBERXL': 35.75
             }
 
-        # STEP 1: Get current time if not provided
+        # STEP 1: Get current time if not provided (MIAMI LOCAL TIME)
+        miami_time = get_miami_time()
+
         if hour_of_day is None:
-            hour_of_day = datetime.now().hour
-            print(f"⏰ Using current time: {hour_of_day}:00")
+            hour_of_day = miami_time.hour
+            print(f"⏰ Using current Miami time: {miami_time.strftime('%I:%M %p')} (hour={hour_of_day})")
 
         if day_of_week is None:
-            day_of_week = datetime.now().weekday()
+            day_of_week = miami_time.weekday()
             days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
             print(f"📅 Using current day: {days[day_of_week]}")
 
@@ -276,11 +287,12 @@ class XGBoostPricingAPI:
         """
         if not self.is_loaded:
             return 25.50  # Fallback price
-        
+
+        miami_time = get_miami_time()
         if hour_of_day is None:
-            hour_of_day = datetime.now().hour
+            hour_of_day = miami_time.hour
         if day_of_week is None:
-            day_of_week = datetime.now().weekday()
+            day_of_week = miami_time.weekday()
         
         try:
             result = self.model.predict(
@@ -310,7 +322,8 @@ class XGBoostPricingAPI:
         # Check if this is a multi-service call
         if 'service_type' in kwargs:
             service = kwargs.get('service_type', 'UBERX')
-            
+            miami_time = get_miami_time()
+
             try:
                 result = self.model.predict(
                     pickup_lat=kwargs.get('pickup_lat'),
@@ -318,8 +331,8 @@ class XGBoostPricingAPI:
                     dropoff_lat=kwargs.get('dropoff_lat'),
                     dropoff_lng=kwargs.get('dropoff_lng'),
                     service_type=service,
-                    hour_of_day=kwargs.get('hour_of_day', datetime.now().hour),
-                    day_of_week=kwargs.get('day_of_week', datetime.now().weekday()),
+                    hour_of_day=kwargs.get('hour_of_day', miami_time.hour),
+                    day_of_week=kwargs.get('day_of_week', miami_time.weekday()),
                     traffic_level=kwargs.get('traffic_level', 'moderate'),
                     weather_condition=kwargs.get('weather_condition', 'clear')
                 )
