@@ -100,35 +100,60 @@ class XGBoostPricingAPI:
             self.is_loaded = False
     
     def get_real_distance(self, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng):
-        """Get real driving distance from Google Maps API"""
+        """Get real driving distance and traffic from Google Maps API"""
         if self.gmaps:
             try:
+                # Request with traffic model for better accuracy
                 result = self.gmaps.distance_matrix(
                     origins=[(pickup_lat, pickup_lng)],
                     destinations=[(dropoff_lat, dropoff_lng)],
                     mode="driving",
-                    units="metric"
+                    units="metric",
+                    departure_time="now",  # Required for traffic data
+                    traffic_model="best_guess"  # Use best guess for traffic
                 )
-                
+
                 if result['status'] == 'OK' and result['rows'][0]['elements'][0]['status'] == 'OK':
-                    distance_m = result['rows'][0]['elements'][0]['distance']['value']
+                    element = result['rows'][0]['elements'][0]
+
+                    # Get distance
+                    distance_m = element['distance']['value']
                     distance_km = distance_m / 1000
-                    duration_s = result['rows'][0]['elements'][0]['duration']['value']
-                    
-                    # Check for traffic by comparing to duration_in_traffic
-                    traffic_level = 'moderate'
-                    if 'duration_in_traffic' in result['rows'][0]['elements'][0]:
-                        traffic_duration = result['rows'][0]['elements'][0]['duration_in_traffic']['value']
-                        traffic_ratio = traffic_duration / duration_s
-                        if traffic_ratio > 1.3:
+
+                    # Get duration and traffic duration
+                    duration_s = element['duration']['value']
+
+                    # Determine traffic level from duration_in_traffic
+                    traffic_level = 'moderate'  # default
+
+                    if 'duration_in_traffic' in element:
+                        traffic_duration = element['duration_in_traffic']['value']
+                        traffic_ratio = traffic_duration / duration_s if duration_s > 0 else 1.0
+
+                        # Traffic level thresholds
+                        if traffic_ratio >= 1.4:
                             traffic_level = 'heavy'
-                        elif traffic_ratio < 0.9:
+                        elif traffic_ratio >= 1.15:
+                            traffic_level = 'moderate'
+                        else:
                             traffic_level = 'light'
-                    
+
+                        print(f"   Traffic ratio: {traffic_ratio:.2f}x (normal: {duration_s/60:.1f}min, with traffic: {traffic_duration/60:.1f}min)")
+                    else:
+                        # Estimate based on time of day if duration_in_traffic not available
+                        hour = datetime.now().hour
+                        if hour in [7, 8, 9, 16, 17, 18, 19]:  # Rush hours
+                            traffic_level = 'moderate'
+                        else:
+                            traffic_level = 'light'
+
                     return distance_km, traffic_level
+
             except Exception as e:
                 print(f"⚠️  Google Maps API error: {e}")
-        
+                import traceback
+                traceback.print_exc()
+
         return None, None
     
     def get_current_weather(self, lat, lng):
@@ -163,11 +188,13 @@ class XGBoostPricingAPI:
         return 'clear'
     
     def predict_all_services(self, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
-                            hour_of_day=None, day_of_week=None, 
-                            traffic_level='moderate', weather_condition='clear'):
+                            hour_of_day=None, day_of_week=None,
+                            traffic_level=None, weather_condition=None):
         """
-        Predict prices for all service types
-        Compatible with GUI interface
+        Predict prices for all service types with intelligent real-time context
+
+        User provides: Just coordinates
+        Backend fills: Time, traffic, weather from real-time APIs
         """
         if not self.is_loaded:
             # Return fallback prices if model not loaded
@@ -177,23 +204,35 @@ class XGBoostPricingAPI:
                 'UBERX': 25.50,
                 'UBERXL': 35.75
             }
-        
-        # Use current time if not provided
+
+        # STEP 1: Get current time if not provided
         if hour_of_day is None:
             hour_of_day = datetime.now().hour
+            print(f"⏰ Using current time: {hour_of_day}:00")
+
         if day_of_week is None:
             day_of_week = datetime.now().weekday()
-        
-        # Get real-time data from APIs if available
-        real_distance, real_traffic = self.get_real_distance(pickup_lat, pickup_lng, dropoff_lat, dropoff_lng)
-        if real_traffic:
-            traffic_level = real_traffic
-            print(f"📍 Using Google Maps data - Traffic: {traffic_level}")
-        
-        real_weather = self.get_current_weather(pickup_lat, pickup_lng)
-        if real_weather != 'clear' or self.weather_api_key:
+            days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+            print(f"📅 Using current day: {days[day_of_week]}")
+
+        # STEP 2: Get real-time TRAFFIC from Google Maps (if available)
+        if traffic_level is None:
+            real_distance, real_traffic = self.get_real_distance(pickup_lat, pickup_lng, dropoff_lat, dropoff_lng)
+            if real_traffic:
+                traffic_level = real_traffic
+                print(f"🚗 Real-time traffic from Google Maps: {traffic_level.upper()}")
+            else:
+                traffic_level = 'moderate'
+                print(f"⚠️  Google Maps unavailable, using default: moderate traffic")
+
+        # STEP 3: Get real-time WEATHER from OpenWeatherMap (if available)
+        if weather_condition is None:
+            real_weather = self.get_current_weather(pickup_lat, pickup_lng)
             weather_condition = real_weather
-            print(f"🌤️  Using real weather data - Condition: {weather_condition}")
+            if self.weather_api_key:
+                print(f"🌤️  Real-time weather from OpenWeatherMap: {weather_condition}")
+            else:
+                print(f"⚠️  Weather API unavailable, using default: {weather_condition}")
         
         try:
             # Get predictions for all services
