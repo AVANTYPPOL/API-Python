@@ -57,9 +57,9 @@ class XGBoostPricingAPI:
         if google_api_key and GOOGLEMAPS_AVAILABLE:
             try:
                 self.gmaps = googlemaps.Client(key=google_api_key)
-                print("✅ Google Maps API initialized")
+                print("[OK] Google Maps API initialized")
             except Exception as e:
-                print(f"⚠️  Google Maps API initialization failed: {e}")
+                print(f"[WARNING] Google Maps API initialization failed: {e}")
         
         # Try to load the model
         self.load_model()
@@ -68,29 +68,29 @@ class XGBoostPricingAPI:
         """Load the XGBoost model"""
         try:
             # Check if model file exists and log detailed info
-            print(f"🔍 Looking for model file: {self.model_path}")
-            print(f"🔍 Current working directory: {os.getcwd()}")
-            print(f"🔍 Files in current directory: {os.listdir('.')[:10]}")
+            print(f"[SEARCH] Looking for model file: {self.model_path}")
+            print(f"[SEARCH] Current working directory: {os.getcwd()}")
+            print(f"[SEARCH] Files in current directory: {os.listdir('.')[:10]}")
             
             if os.path.exists(self.model_path):
-                print(f"✅ Model file found: {self.model_path}")
+                print(f"[OK] Model file found: {self.model_path}")
                 file_size = os.path.getsize(self.model_path)
-                print(f"📦 Model file size: {file_size} bytes")
+                print(f"[INFO] Model file size: {file_size} bytes")
                 
                 self.model = XGBoostMiamiModel()
                 self.model.load_model(self.model_path)
                 self.is_loaded = True
-                print("✅ XGBoost model loaded successfully")
+                print("[OK] XGBoost model loaded successfully")
             else:
-                print(f"❌ Model file not found: {self.model_path}")
-                print("📁 Available files:")
+                print(f"[ERROR] Model file not found: {self.model_path}")
+                print("[INFO] Available files:")
                 for f in os.listdir('.'):
                     if f.endswith('.pkl'):
                         print(f"   Found .pkl file: {f}")
                 print("   Using fallback pricing...")
                 self.is_loaded = False
         except Exception as e:
-            print(f"❌ Failed to load XGBoost model: {e}")
+            print(f"[ERROR] Failed to load XGBoost model: {e}")
             import traceback
             traceback.print_exc()
             self.is_loaded = False
@@ -102,9 +102,9 @@ class XGBoostPricingAPI:
             self.model.train()
             self.model.save_model(self.model_path)
             self.is_loaded = True
-            print("✅ New XGBoost model trained and saved")
+            print("[OK] New XGBoost model trained and saved")
         except Exception as e:
-            print(f"❌ Failed to train new model: {e}")
+            print(f"[ERROR] Failed to train new model: {e}")
             self.is_loaded = False
     
     def get_real_distance(self, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng):
@@ -146,7 +146,7 @@ class XGBoostPricingAPI:
                         else:
                             traffic_level = 'light'
 
-                        print(f"   Traffic ratio: {traffic_ratio:.2f}x (normal: {duration_s/60:.1f}min, with traffic: {traffic_duration/60:.1f}min)")
+                        print(f"[INFO] Traffic ratio: {traffic_ratio:.2f}x (normal: {duration_s/60:.1f}min, with traffic: {traffic_duration/60:.1f}min)")
                     else:
                         # Estimate based on time of day if duration_in_traffic not available
                         miami_time = get_miami_time()
@@ -159,7 +159,7 @@ class XGBoostPricingAPI:
                     return distance_km, traffic_level
 
             except Exception as e:
-                print(f"⚠️  Google Maps API error: {e}")
+                print(f"[WARNING] Google Maps API error: {e}")
                 import traceback
                 traceback.print_exc()
 
@@ -192,7 +192,7 @@ class XGBoostPricingAPI:
                     else:
                         return 'clear'
             except Exception as e:
-                print(f"⚠️  Weather API error: {e}")
+                print(f"[WARNING] Weather API error: {e}")
         
         return 'clear'
     
@@ -219,31 +219,31 @@ class XGBoostPricingAPI:
 
         if hour_of_day is None:
             hour_of_day = miami_time.hour
-            print(f"⏰ Using current Miami time: {miami_time.strftime('%I:%M %p')} (hour={hour_of_day})")
+            print(f"[TIME] Using current Miami time: {miami_time.strftime('%I:%M %p')} (hour={hour_of_day})")
 
         if day_of_week is None:
             day_of_week = miami_time.weekday()
             days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-            print(f"📅 Using current day: {days[day_of_week]}")
+            print(f"[DATE] Using current day: {days[day_of_week]}")
 
         # STEP 2: Get real-time TRAFFIC from Google Maps (if available)
         if traffic_level is None:
             real_distance, real_traffic = self.get_real_distance(pickup_lat, pickup_lng, dropoff_lat, dropoff_lng)
             if real_traffic:
                 traffic_level = real_traffic
-                print(f"🚗 Real-time traffic from Google Maps: {traffic_level.upper()}")
+                print(f"[TRAFFIC] Real-time traffic from Google Maps: {traffic_level.upper()}")
             else:
                 traffic_level = 'moderate'
-                print(f"⚠️  Google Maps unavailable, using default: moderate traffic")
+                print(f"[WARNING] Google Maps unavailable, using default: moderate traffic")
 
         # STEP 3: Get real-time WEATHER from OpenWeatherMap (if available)
         if weather_condition is None:
             real_weather = self.get_current_weather(pickup_lat, pickup_lng)
             weather_condition = real_weather
             if self.weather_api_key:
-                print(f"🌤️  Real-time weather from OpenWeatherMap: {weather_condition}")
+                print(f"[WEATHER] Real-time weather from OpenWeatherMap: {weather_condition}")
             else:
-                print(f"⚠️  Weather API unavailable, using default: {weather_condition}")
+                print(f"[WARNING] Weather API unavailable, using default: {weather_condition}")
         
         try:
             # Get predictions for all services
@@ -269,7 +269,7 @@ class XGBoostPricingAPI:
             return gui_results
             
         except Exception as e:
-            print(f"❌ Prediction error: {e}")
+            print(f"[ERROR] Prediction error: {e}")
             # Return fallback prices
             return {
                 'PREMIER': 45.20,
@@ -312,7 +312,7 @@ class XGBoostPricingAPI:
             return price
             
         except Exception as e:
-            print(f"❌ Single prediction error: {e}")
+            print(f"[ERROR] Single prediction error: {e}")
             return 25.50  # Fallback price
     
     def predict(self, **kwargs):
@@ -340,7 +340,7 @@ class XGBoostPricingAPI:
                 return result['predicted_price']
                 
             except Exception as e:
-                print(f"❌ Service prediction error: {e}")
+                print(f"[ERROR] Service prediction error: {e}")
                 return 25.50
         else:
             # Legacy single prediction
