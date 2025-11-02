@@ -18,12 +18,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Validate model can load (fail fast if incompatible)
-RUN python -c "from xgboost_pricing_api import XGBoostPricingAPI; \
-    api = XGBoostPricingAPI('xgboost_miami_model.pkl'); \
-    print('Model loaded:', api.is_loaded); \
-    assert api.is_loaded, 'Model failed to load in container'; \
-    print('✅ Model validation passed')"
+# Validate hybrid model can load (fail fast if incompatible)
+RUN python -c "from hybrid_pricing_api import HybridPricingAPI; \
+    api = HybridPricingAPI('booking_fee_model.pkl'); \
+    print('[CHECK] Hybrid model loaded:', api.is_loaded); \
+    assert api.is_loaded, 'Hybrid model failed to load in container'; \
+    print('[OK] Hybrid pricing model validation passed')"
 
 # Expose port
 EXPOSE 5000

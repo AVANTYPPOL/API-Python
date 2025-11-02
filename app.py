@@ -8,14 +8,22 @@ import math
 import psutil  # For memory monitoring
 import time
 
-# Import XGBoost API and ModelManager at top level to catch import errors early
+# Import Hybrid Pricing API (new) and XGBoost API (backup) at top level
+try:
+    from hybrid_pricing_api import HybridPricingAPI
+    HYBRID_AVAILABLE = True
+    print("[OK] Hybrid Pricing API imported successfully - v3.0")
+except ImportError as e:
+    print(f"[WARNING] Hybrid API import failed: {e}")
+    HYBRID_AVAILABLE = False
+
 try:
     from xgboost_pricing_api import XGBoostPricingAPI
     from model_manager import model_manager
     XGBOOST_AVAILABLE = True
-    print("✅ XGBoost API and ModelManager imported successfully - v2.1")
+    print("[OK] XGBoost API and ModelManager imported successfully (backup)")
 except ImportError as e:
-    print(f"❌ XGBoost or ModelManager import failed: {e}")
+    print(f"[WARNING] XGBoost or ModelManager import failed: {e}")
     XGBOOST_AVAILABLE = False
     model_manager = None
 
@@ -72,31 +80,73 @@ def haversine_distance(lat1, lng1, lat2, lng2):
     
     return distance
 
-def load_xgboost_model():
-    """Load the XGBoost ML model with enhanced version tracking"""
+def load_pricing_model():
+    """Load pricing model - tries Hybrid first, falls back to XGBoost"""
     global pricing_model, model_info, model_loaded, model_loading
-    
-    # Use ModelManager if available
-    if USE_MODEL_MANAGER:
-        success = model_manager.load_model()
-        if success:
-            pricing_model = model_manager.model
-            model_info = model_manager.get_api_model_info()
-            model_loaded = True
-        return success
-    
+
     # Prevent multiple simultaneous loading attempts
     if model_loading:
-        logger.info("⏳ Model is already being loaded by another process...")
+        logger.info("[INFO] Model is already being loaded by another process...")
         return model_loaded
-    
+
     if model_loaded:
-        logger.info("✅ Model already loaded, skipping...")
+        logger.info("[OK] Model already loaded, skipping...")
         return True
-    
+
     model_loading = True
-    
+
     try:
+        # Try loading Hybrid model first (new v3.0)
+        if HYBRID_AVAILABLE:
+            logger.info("=" * 70)
+            logger.info("LOADING HYBRID PRICING MODEL V3.0")
+            logger.info("=" * 70)
+            logger.info("Architecture: Static Rules + ML Booking Fee Prediction")
+            logger.info("Booking Fee Model: XGBoost (R² = 0.97, MAE = $0.34)")
+            logger.info("=" * 70)
+
+            start_time = time.time()
+            pricing_model = HybridPricingAPI('booking_fee_model.pkl')
+            load_time = time.time() - start_time
+            logger.info(f"[TIME] Model initialization took {load_time:.2f} seconds")
+
+            if pricing_model is not None and pricing_model.is_loaded:
+                logger.info("[OK] Hybrid pricing model loaded successfully")
+
+                model_info = {
+                    'model_type': 'hybrid_pricing_v3',
+                    'accuracy': '97.11%',
+                    'description': 'Static Uber rules + ML-predicted booking fees',
+                    'formula': 'base_fare + (miles × per_mile_rate) + (minutes × rate_per_minute) + ML_booking_fee',
+                    'services': ['PREMIER', 'SUV_PREMIER', 'UBERX', 'UBERXL'],
+                    'booking_fee_model': {
+                        'type': 'XGBoost',
+                        'r2_score': 0.9711,
+                        'mae': '$0.34',
+                        'rmse': '$0.49'
+                    }
+                }
+
+                logger.info("=" * 70)
+                logger.info("[OK] HYBRID MODEL READY FOR PRODUCTION")
+                logger.info("=" * 70)
+                model_loaded = True
+                model_loading = False
+                return True
+
+        # Fallback to old XGBoost model
+        logger.info("[INFO] Falling back to XGBoost model...")
+
+        # Use ModelManager if available
+        if USE_MODEL_MANAGER:
+            success = model_manager.load_model()
+            if success:
+                pricing_model = model_manager.model
+                model_info = model_manager.get_api_model_info()
+                model_loaded = True
+                model_loading = False
+            return success
+
         if not XGBOOST_AVAILABLE:
             logger.error("❌ XGBoost not available - cannot load model")
             return False
@@ -186,19 +236,19 @@ logger.info("📦 Model will be loaded on first request (lazy loading enabled)")
 def health_check():
     """Health check endpoint - triggers lazy model loading"""
     global model_loaded
-    
+
     # Try to load model if not already loaded (lazy loading)
     if not model_loaded:
-        logger.info("🔄 Health check triggered - attempting to load model...")
-        load_xgboost_model()
-    
+        logger.info("[INFO] Health check triggered - attempting to load model...")
+        load_pricing_model()
+
     # Enhanced health info with version tracking
     health_response = {
         'status': 'healthy',
-        'version': '1.0.0',
+        'version': '3.0.0',
         'model_loaded': model_loaded,
         'model_info': model_info,
-        'api_name': 'XGBoost Miami Pricing API'
+        'api_name': 'Hybrid Pricing API (Static Rules + ML Booking Fee)'
     }
     
     # Add version tracking info if available (for monitoring)
@@ -214,13 +264,15 @@ def model_info_endpoint():
     base_response = {
         'model_info': model_info,
         'model_loaded': pricing_model is not None,
-        'version': '1.0.0',
+        'version': '3.0.0',
+        'architecture': 'Hybrid: Static Pricing Rules + ML Booking Fee Prediction',
         'api_capabilities': {
             'real_time_pricing': True,
             'batch_predictions': True,
             'miami_optimized': True,
             'multi_service': True,
-            'competitive_pricing': True
+            'uses_google_maps': True,
+            'ml_booking_fee': True
         }
     }
     
@@ -234,13 +286,13 @@ def model_info_endpoint():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    """Price prediction endpoint using Ultimate Miami model"""
-    global model_loaded
-    
+    """Price prediction endpoint using Hybrid Pricing Model v3.0"""
+    global model_loaded, pricing_model
+
     # Ensure model is loaded (lazy loading)
     if not model_loaded:
-        logger.info("🔄 Prediction request triggered - attempting to load model...")
-        load_xgboost_model()
+        logger.info("[INFO] Prediction request triggered - attempting to load model...")
+        load_pricing_model()
     
     try:
         data = request.get_json()
@@ -267,36 +319,9 @@ def predict():
         
         # Calculate distance
         distance_km = haversine_distance(pickup_lat, pickup_lng, dropoff_lat, dropoff_lng)
-        
-        # Use ModelManager for predictions if available
-        if USE_MODEL_MANAGER and model_manager.is_model_loaded():
-            try:
-                predictions = model_manager.predict_all_services(
-                    pickup_lat=pickup_lat,
-                    pickup_lng=pickup_lng,
-                    dropoff_lat=dropoff_lat,
-                    dropoff_lng=dropoff_lng
-                )
-                
-                # Apply 20% discount and return
-                discounted_predictions = apply_price_discount(predictions)
-                return jsonify({
-                    'success': True,
-                    'predictions': discounted_predictions,
-                    'request_details': {
-                        'distance_miles': round(distance_km * 0.621371, 1),
-                        'distance_km': round(distance_km, 1)
-                    },
-                    'model_info': {
-                        'model_type': 'xgboost_miami_model',
-                        'accuracy': '90.93%'
-                    }
-                })
-            except Exception as e:
-                logger.error(f"ModelManager prediction error: {e}")
-                # Fallback to legacy model
-                pricing_model = None
-        elif pricing_model and hasattr(pricing_model, 'predict_all_services'):
+
+        # Try using pricing_model first (Hybrid or XGBoost)
+        if pricing_model and hasattr(pricing_model, 'predict_all_services'):
             # Legacy model prediction path
             try:
                 predictions = pricing_model.predict_all_services(
@@ -342,8 +367,8 @@ def predict():
                         'distance_km': round(distance_km, 1)
                     },
                     'model_info': {
-                        'model_type': 'xgboost_miami_model',
-                        'accuracy': '90.93%'
+                        'model_type': model_info.get('model_type', 'hybrid_pricing_v3'),
+                        'accuracy': model_info.get('accuracy', '97.11%')
                     }
                 })
         else:
@@ -378,6 +403,13 @@ def predict():
 @app.route('/predict/batch', methods=['POST'])
 def predict_batch():
     """Batch prediction endpoint"""
+    global pricing_model, model_loaded
+
+    # Ensure model is loaded (lazy loading)
+    if not model_loaded:
+        logger.info("[INFO] Batch prediction request triggered - attempting to load model...")
+        load_pricing_model()
+
     try:
         data = request.get_json()
         

@@ -1,0 +1,52 @@
+{
+  "model_type": "XGBoost Booking Fee Predictor",
+  "trained_date": "2025-11-02T09:37:30.863320",
+  "training_samples": 510,
+  "test_samples": 128,
+  "features": [
+    "pickup_lat",
+    "pickup_lng",
+    "dropoff_lat",
+    "dropoff_lng",
+    "distance_km",
+    "haversine_km",
+    "hour_of_day",
+    "day_of_week",
+    "hour_sin",
+    "hour_cos",
+    "day_sin",
+    "day_cos",
+    "service_type_encoded",
+    "traffic_level_encoded",
+    "weather_condition_encoded"
+  ],
+  "test_r2": 0.9711301203040971,
+  "test_rmse": 0.4924262041161315,
+  "test_mae": 0.33682068318128583,
+  "pricing_rules": {
+    "UBERX": {
+      "base_fare": 2.25,
+      "per_mile_rate": 0.79,
+      "per_minute_rate": 0.2,
+      "minimum_fare": 5.7
+    },
+    "UBERXL": {
+      "base_fare": 4.22,
+      "per_mile_rate": 1.7,
+      "per_minute_rate": 0.3,
+      "minimum_fare": 8.58
+    },
+    "PREMIER": {
+      "base_fare": 2.98,
+      "per_mile_rate": 1.99,
+      "per_minute_rate": 0.57,
+      "minimum_fare": 15.97
+    },
+    "SUV_PREMIER": {
+      "base_fare": 3.76,
+      "per_mile_rate": 2.46,
+      "per_minute_rate": 0.71,
+      "minimum_fare": 21.95
+    }
+  }
+}
