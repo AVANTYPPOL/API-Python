@@ -1,8 +1,8 @@
 {
   "model_type": "XGBoost Booking Fee Predictor",
-  "trained_date": "2025-11-02T09:37:30.863320",
-  "training_samples": 510,
-  "test_samples": 128,
+  "trained_date": "2025-11-12T11:56:31.906822",
+  "training_samples": 1185,
+  "test_samples": 297,
   "features": [
     "pickup_lat",
     "pickup_lng",
@@ -20,9 +20,9 @@
     "traffic_level_encoded",
     "weather_condition_encoded"
   ],
-  "test_r2": 0.9711301203040971,
-  "test_rmse": 0.4924262041161315,
-  "test_mae": 0.33682068318128583,
+  "test_r2": 0.9796196729794604,
+  "test_rmse": 0.4587631681347858,
+  "test_mae": 0.32296626630455555,
   "pricing_rules": {
     "UBERX": {
       "base_fare": 2.25,
