@@ -46,11 +46,11 @@ USE_MODEL_MANAGER = model_manager is not None
 # Performance optimization: Cache for distance calculations
 distance_cache = {}
 
-# Price adjustment: No discount applied
-PRICE_DISCOUNT = 0.0  # No discount
+# Price adjustment: 15% discount applied
+PRICE_DISCOUNT = 0.15  # 15% discount
 
 def apply_price_discount(predictions):
-    """Apply price adjustment (currently no discount)"""
+    """Apply 15% discount to all predictions"""
     discounted = {}
     for service, price in predictions.items():
         discounted[service] = round(float(price) * (1 - PRICE_DISCOUNT), 2)
@@ -230,6 +230,7 @@ def load_pricing_model():
 
 # Lazy loading - model will be loaded on first request
 logger.info("🚀 Initializing Rideshare Pricing API...")
+logger.info(f"💰 Price discount configured: {PRICE_DISCOUNT * 100:.0f}%")
 logger.info("📦 Model will be loaded on first request (lazy loading enabled)")
 
 @app.route('/health', methods=['GET'])
@@ -286,37 +287,44 @@ def model_info_endpoint():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    """Price prediction endpoint using Hybrid Pricing Model v3.0"""
+    """Price prediction endpoint using Hybrid Pricing Model v3.0
+
+    Optional query parameter:
+    ?debug=true - Includes price breakdown for testing (does NOT break API contract)
+    """
     global model_loaded, pricing_model
 
     # Ensure model is loaded (lazy loading)
     if not model_loaded:
         logger.info("[INFO] Prediction request triggered - attempting to load model...")
         load_pricing_model()
-    
+
+    # Check for debug mode (optional query parameter)
+    debug_mode = request.args.get('debug', 'false').lower() == 'true'
+
     try:
         data = request.get_json()
-        
+
         if not data:
             return jsonify({'error': 'No JSON data provided'}), 400
-        
+
         # Extract required fields
         required_fields = ['pickup_latitude', 'pickup_longitude', 'dropoff_latitude', 'dropoff_longitude']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
-        
+
         pickup_lat = float(data['pickup_latitude'])
         pickup_lng = float(data['pickup_longitude'])
         dropoff_lat = float(data['dropoff_latitude'])
         dropoff_lng = float(data['dropoff_longitude'])
-        
+
         # Validate coordinates
         if not (-90 <= pickup_lat <= 90) or not (-180 <= pickup_lng <= 180):
             return jsonify({'error': 'Invalid pickup coordinates'}), 400
         if not (-90 <= dropoff_lat <= 90) or not (-180 <= dropoff_lng <= 180):
             return jsonify({'error': 'Invalid dropoff coordinates'}), 400
-        
+
         # Calculate distance
         distance_km = haversine_distance(pickup_lat, pickup_lng, dropoff_lat, dropoff_lng)
 
@@ -330,10 +338,12 @@ def predict():
                     dropoff_lat=dropoff_lat,
                     dropoff_lng=dropoff_lng
                 )
-                
+
                 # Apply 20% discount and return all service predictions
                 discounted_predictions = apply_price_discount(predictions)
-                return jsonify({
+
+                # Build base response
+                response = {
                     'success': True,
                     'predictions': discounted_predictions,  # All 4 services with 20% discount
                     'request_details': {
@@ -344,7 +354,75 @@ def predict():
                         'model_type': model_info.get('model_type', 'xgboost_miami_model'),
                         'accuracy': model_info.get('accuracy', '88.22%')
                     }
-                })
+                }
+
+                # Add debug breakdown if requested (OPTIONAL - doesn't break API contract)
+                if debug_mode and HYBRID_AVAILABLE and hasattr(pricing_model, 'get_distance_and_duration'):
+                    try:
+                        # Get Google Maps distance and duration
+                        distance_km_gmaps, distance_miles_gmaps, duration_minutes = pricing_model.get_distance_and_duration(
+                            pickup_lat, pickup_lng, dropoff_lat, dropoff_lng
+                        )
+
+                        # Calculate breakdown for each service
+                        breakdown = {}
+                        for service_type in ['UBERX', 'UBERXL', 'PREMIER', 'SUV_PREMIER']:
+                            rules = pricing_model.PRICING_RULES[service_type]
+
+                            base_fare = rules['base_fare']
+                            distance_cost = distance_miles_gmaps * rules['per_mile_rate']
+                            time_cost = duration_minutes * rules['per_minute_rate']
+
+                            # Get booking fee prediction
+                            booking_fee = 0
+                            if hasattr(pricing_model, 'booking_fee_model') and pricing_model.booking_fee_model:
+                                # Get current Miami time for prediction
+                                from hybrid_pricing_api import get_miami_time
+                                miami_time = get_miami_time()
+
+                                booking_fee = pricing_model.booking_fee_model.predict_booking_fee(
+                                    pickup_lat=pickup_lat,
+                                    pickup_lng=pickup_lng,
+                                    dropoff_lat=dropoff_lat,
+                                    dropoff_lng=dropoff_lng,
+                                    service_type=service_type,
+                                    hour_of_day=miami_time.hour,
+                                    day_of_week=miami_time.weekday(),
+                                    traffic_level='moderate',
+                                    weather_condition='clear'
+                                )
+
+                            subtotal = base_fare + distance_cost + time_cost + booking_fee
+                            final_price = max(subtotal, rules['minimum_fare'])
+
+                            # Calculate discounted price
+                            discounted_price = final_price * (1 - PRICE_DISCOUNT)
+                            logger.info(f"[DEBUG] {service_type}: final=${final_price:.2f}, discount={PRICE_DISCOUNT*100:.0f}%, discounted=${discounted_price:.2f}")
+
+                            breakdown[service_type] = {
+                                'base_fare': round(base_fare, 2),
+                                'distance_cost': round(distance_cost, 2),
+                                'time_cost': round(time_cost, 2),
+                                'booking_fee': round(booking_fee, 2),
+                                'subtotal': round(subtotal, 2),
+                                'minimum_fare': round(rules['minimum_fare'], 2),
+                                'final_price': round(final_price, 2),
+                                'discounted_price': round(discounted_price, 2)
+                            }
+
+                        response['debug_breakdown'] = {
+                            'google_maps': {
+                                'distance_miles': round(distance_miles_gmaps, 2),
+                                'distance_km': round(distance_km_gmaps, 2),
+                                'duration_minutes': round(duration_minutes, 1)
+                            },
+                            'price_components': breakdown,
+                            'note': 'Debug mode - this field only appears when ?debug=true is used'
+                        }
+                    except Exception as e:
+                        logger.warning(f"Debug breakdown failed: {e}")
+
+                return jsonify(response)
                 
             except Exception as e:
                 logger.error(f"Model prediction error: {e}")
