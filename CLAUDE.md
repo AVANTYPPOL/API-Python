@@ -96,7 +96,28 @@ POST /predict?details=true
   "request_details": {
     "distance_miles": 3.4,
     "distance_km": 5.4,
-    "duration_minutes": 10.2
+    "duration_minutes": 10.2,
+    "google_maps": {
+      "distance_miles": 12.7,
+      "distance_km": 20.45,
+      "duration_minutes": 37.8,
+      "source": "Google Maps Distance Matrix API with real-time traffic"
+    },
+    "straight_line": {
+      "distance_miles": 6.38,
+      "distance_km": 10.26,
+      "source": "Haversine formula (direct line)"
+    },
+    "road_vs_straight_line": {
+      "difference_miles": 6.33,
+      "difference_percent": 99.2,
+      "note": "Road distance is typically 20-60% longer than straight-line due to actual street routing"
+    },
+    "pricing_calculation_source": {
+      "distance_used": "12.7 miles (Google Maps road distance)",
+      "duration_used": "37.8 minutes (Google Maps with real-time traffic)",
+      "note": "All service prices are calculated using Google Maps road routing, NOT straight-line distance"
+    }
   },
   "service_details": {
     "UBERX": {
@@ -123,6 +144,23 @@ POST /predict?details=true
 }
 ```
 
+**Google Maps Transparency Fields** (in `request_details`):
+- `google_maps` - Actual road routing data from Google Maps API
+  - `distance_miles` / `distance_km` - Real road distance
+  - `duration_minutes` - Estimated travel time with real-time traffic
+  - `source` - Data source identifier
+- `straight_line` - Direct haversine distance for comparison
+  - `distance_miles` / `distance_km` - "As the crow flies" distance
+  - `source` - Calculation method
+- `road_vs_straight_line` - Comparison showing the difference
+  - `difference_miles` - How much longer the road route is
+  - `difference_percent` - Percentage difference (typically 20-60%, can be 90%+ for coastal routes)
+  - `note` - Explanation of why differences exist
+- `pricing_calculation_source` - Explicit statement of which data is used for pricing
+  - `distance_used` - Shows the exact distance value used in calculations
+  - `duration_used` - Shows the exact duration value used in calculations
+  - `note` - Clarifies that Google Maps road routing is always used, never straight-line
+
 **Service Details Fields:**
 - `base_fare` - Initial pickup charge
 - `per_mile_rate` - Rate per mile
@@ -135,6 +173,13 @@ POST /predict?details=true
 - `final_price_before_discount` - max(subtotal, minimum_fare)
 - `discount_percentage` - Applied discount (currently 15%)
 - `final_price` - Final price after discount (matches predictions)
+
+**Real-World Example:**
+Miami Airport → South Beach:
+- Straight-line: 6.38 miles
+- Google Maps road: 12.7 miles (99% longer - nearly double!)
+- Pricing uses: 12.7 miles from Google Maps
+- Why? The route crosses water/islands requiring significant detours
 
 **Important:** Without the `?details=true` parameter, the response format remains exactly as documented above in "Response Format for `/predict`" - no breaking changes.
 
