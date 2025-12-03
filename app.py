@@ -433,7 +433,37 @@ def predict():
                             pickup_lat, pickup_lng, dropoff_lat, dropoff_lng
                         )
 
-                        # Add duration to request_details
+                        # Add Google Maps data to request_details for transparency
+                        response['request_details']['google_maps'] = {
+                            'distance_miles': round(distance_miles_gmaps, 2),
+                            'distance_km': round(distance_km_gmaps, 2),
+                            'duration_minutes': round(duration_minutes, 1),
+                            'source': 'Google Maps Distance Matrix API with real-time traffic'
+                        }
+
+                        # Also show straight-line distance for comparison
+                        response['request_details']['straight_line'] = {
+                            'distance_miles': round(distance_km * 0.621371, 2),
+                            'distance_km': round(distance_km, 2),
+                            'source': 'Haversine formula (direct line)'
+                        }
+
+                        # Show the difference
+                        distance_difference_pct = ((distance_miles_gmaps - (distance_km * 0.621371)) / (distance_km * 0.621371)) * 100
+                        response['request_details']['road_vs_straight_line'] = {
+                            'difference_miles': round(distance_miles_gmaps - (distance_km * 0.621371), 2),
+                            'difference_percent': round(distance_difference_pct, 1),
+                            'note': 'Road distance is typically 20-60% longer than straight-line due to actual street routing'
+                        }
+
+                        # Clarify which data is used for pricing
+                        response['request_details']['pricing_calculation_source'] = {
+                            'distance_used': f"{round(distance_miles_gmaps, 2)} miles (Google Maps road distance)",
+                            'duration_used': f"{round(duration_minutes, 1)} minutes (Google Maps with real-time traffic)",
+                            'note': 'All service prices are calculated using Google Maps road routing, NOT straight-line distance'
+                        }
+
+                        # Keep duration for backward compatibility
                         response['request_details']['duration_minutes'] = round(duration_minutes, 1)
 
                         # Build service details for each service type
