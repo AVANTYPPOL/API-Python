@@ -289,8 +289,9 @@ def model_info_endpoint():
 def predict():
     """Price prediction endpoint using Hybrid Pricing Model v3.0
 
-    Optional query parameter:
-    ?debug=true - Includes price breakdown for testing (does NOT break API contract)
+    Optional query parameters:
+    ?debug=true - Includes detailed price breakdown for testing (does NOT break API contract)
+    ?details=true - Includes service details with pricing metrics (production-ready, backward compatible)
     """
     global model_loaded, pricing_model
 
@@ -299,8 +300,9 @@ def predict():
         logger.info("[INFO] Prediction request triggered - attempting to load model...")
         load_pricing_model()
 
-    # Check for debug mode (optional query parameter)
+    # Check for optional query parameters
     debug_mode = request.args.get('debug', 'false').lower() == 'true'
+    details_mode = request.args.get('details', 'false').lower() == 'true'
 
     try:
         data = request.get_json()
@@ -421,6 +423,68 @@ def predict():
                         }
                     except Exception as e:
                         logger.warning(f"Debug breakdown failed: {e}")
+
+                # Add service details if requested (OPTIONAL - doesn't break API contract)
+                logger.info(f"[DEBUG] details_mode={details_mode}, HYBRID_AVAILABLE={HYBRID_AVAILABLE}, has_method={hasattr(pricing_model, 'get_distance_and_duration') if pricing_model else False}")
+                if details_mode and HYBRID_AVAILABLE and hasattr(pricing_model, 'get_distance_and_duration'):
+                    try:
+                        # Get Google Maps distance and duration
+                        distance_km_gmaps, distance_miles_gmaps, duration_minutes = pricing_model.get_distance_and_duration(
+                            pickup_lat, pickup_lng, dropoff_lat, dropoff_lng
+                        )
+
+                        # Add duration to request_details
+                        response['request_details']['duration_minutes'] = round(duration_minutes, 1)
+
+                        # Build service details for each service type
+                        service_details = {}
+                        for service_type in ['UBERX', 'UBERXL', 'PREMIER', 'SUV_PREMIER']:
+                            rules = pricing_model.PRICING_RULES[service_type]
+
+                            # Calculate components
+                            base_fare = rules['base_fare']
+                            distance_cost = distance_miles_gmaps * rules['per_mile_rate']
+                            time_cost = duration_minutes * rules['per_minute_rate']
+
+                            # Get booking fee prediction
+                            booking_fee = 0
+                            if hasattr(pricing_model, 'booking_fee_model') and pricing_model.booking_fee_model:
+                                from hybrid_pricing_api import get_miami_time
+                                miami_time = get_miami_time()
+
+                                booking_fee = pricing_model.booking_fee_model.predict_booking_fee(
+                                    pickup_lat=pickup_lat,
+                                    pickup_lng=pickup_lng,
+                                    dropoff_lat=dropoff_lat,
+                                    dropoff_lng=dropoff_lng,
+                                    service_type=service_type,
+                                    hour_of_day=miami_time.hour,
+                                    day_of_week=miami_time.weekday(),
+                                    traffic_level='moderate',
+                                    weather_condition='clear'
+                                )
+
+                            subtotal = base_fare + distance_cost + time_cost + booking_fee
+                            final_price = max(subtotal, rules['minimum_fare'])
+
+                            service_details[service_type] = {
+                                'base_fare': round(base_fare, 2),
+                                'per_mile_rate': round(rules['per_mile_rate'], 2),
+                                'per_minute_rate': round(rules['per_minute_rate'], 2),
+                                'minimum_fare': round(rules['minimum_fare'], 2),
+                                'distance_cost': round(distance_cost, 2),
+                                'time_cost': round(time_cost, 2),
+                                'booking_fee': round(booking_fee, 2),
+                                'subtotal': round(subtotal, 2),
+                                'final_price_before_discount': round(final_price, 2),
+                                'discount_percentage': PRICE_DISCOUNT * 100,
+                                'final_price': round(final_price * (1 - PRICE_DISCOUNT), 2)
+                            }
+
+                        response['service_details'] = service_details
+
+                    except Exception as e:
+                        logger.warning(f"Service details generation failed: {e}")
 
                 return jsonify(response)
                 

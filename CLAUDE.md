@@ -65,6 +65,79 @@ Can and WILL break production applications that parse the API responses. The API
 }
 ```
 
+### Optional Query Parameter: `?details=true`
+
+**New Feature:** The `/predict` endpoint now supports an optional `?details=true` query parameter to get comprehensive pricing breakdowns.
+
+**Key Points:**
+- **Backward Compatible:** Existing clients are unaffected - the standard response format remains unchanged
+- **Opt-in Only:** Detailed information only appears when explicitly requested via `?details=true`
+- **Use Cases:** Internal dashboards, pricing analysis tools, debugging, customer support
+
+**Usage:**
+```bash
+# Standard response (existing behavior)
+POST /predict
+
+# Enhanced response with detailed breakdown
+POST /predict?details=true
+```
+
+**Enhanced Response Format (with `?details=true`):**
+```json
+{
+  "success": true,
+  "predictions": {
+    "PREMIER": 20.90,
+    "SUV_PREMIER": 29.18,
+    "UBERX": 12.04,
+    "UBERXL": 19.56
+  },
+  "request_details": {
+    "distance_miles": 3.4,
+    "distance_km": 5.4,
+    "duration_minutes": 10.2
+  },
+  "service_details": {
+    "UBERX": {
+      "base_fare": 2.25,
+      "per_mile_rate": 0.79,
+      "per_minute_rate": 0.20,
+      "minimum_fare": 5.70,
+      "distance_cost": 4.86,
+      "time_cost": 2.04,
+      "booking_fee": 5.01,
+      "subtotal": 14.17,
+      "final_price_before_discount": 14.17,
+      "discount_percentage": 15.0,
+      "final_price": 12.04
+    },
+    "UBERXL": { ... },
+    "PREMIER": { ... },
+    "SUV_PREMIER": { ... }
+  },
+  "model_info": {
+    "model_type": "hybrid_pricing_v3",
+    "accuracy": "97.11%"
+  }
+}
+```
+
+**Service Details Fields:**
+- `base_fare` - Initial pickup charge
+- `per_mile_rate` - Rate per mile
+- `per_minute_rate` - Rate per minute
+- `minimum_fare` - Minimum price for this service
+- `distance_cost` - Total distance charge (distance × per_mile_rate)
+- `time_cost` - Total time charge (duration × per_minute_rate)
+- `booking_fee` - ML-predicted booking fee based on demand, location, time
+- `subtotal` - Sum of base_fare + distance_cost + time_cost + booking_fee
+- `final_price_before_discount` - max(subtotal, minimum_fare)
+- `discount_percentage` - Applied discount (currently 15%)
+- `final_price` - Final price after discount (matches predictions)
+
+**Important:** Without the `?details=true` parameter, the response format remains exactly as documented above in "Response Format for `/predict`" - no breaking changes.
+
 ## Development Guidelines
 
 1. **Backend improvements are allowed** - You can fix bugs, improve model accuracy, optimize performance
