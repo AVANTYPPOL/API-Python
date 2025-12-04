@@ -46,14 +46,27 @@ USE_MODEL_MANAGER = model_manager is not None
 # Performance optimization: Cache for distance calculations
 distance_cache = {}
 
-# Price adjustment: 15% discount applied
-PRICE_DISCOUNT = 0.15  # 15% discount
+# Price adjustment: Base 15% discount + service-specific additional discounts
+BASE_DISCOUNT = 0.15  # 15% base discount for all services
+
+# Service-specific additional discounts (on top of base discount)
+SERVICE_DISCOUNTS = {
+    'UBERX': 0.0625,       # +6.25% additional = 21.25% total
+    'PREMIER': 0.0625,     # +6.25% additional = 21.25% total
+    'UBERXL': 0.10,        # +10% additional = 25% total
+    'SUV_PREMIER': 0.1262  # +12.62% additional = 27.62% total
+}
+
+def get_total_discount(service):
+    """Get total discount for a service (base + service-specific)"""
+    return BASE_DISCOUNT + SERVICE_DISCOUNTS.get(service, 0)
 
 def apply_price_discount(predictions):
-    """Apply 15% discount to all predictions"""
+    """Apply service-specific discounts to all predictions"""
     discounted = {}
     for service, price in predictions.items():
-        discounted[service] = round(float(price) * (1 - PRICE_DISCOUNT), 2)
+        total_discount = get_total_discount(service)
+        discounted[service] = round(float(price) * (1 - total_discount), 2)
     return discounted
 
 def haversine_distance(lat1, lng1, lat2, lng2):
@@ -230,7 +243,11 @@ def load_pricing_model():
 
 # Lazy loading - model will be loaded on first request
 logger.info("🚀 Initializing Rideshare Pricing API...")
-logger.info(f"💰 Price discount configured: {PRICE_DISCOUNT * 100:.0f}%")
+logger.info(f"💰 Base discount configured: {BASE_DISCOUNT * 100:.0f}%")
+logger.info("💰 Service-specific total discounts:")
+for service, additional in SERVICE_DISCOUNTS.items():
+    total = (BASE_DISCOUNT + additional) * 100
+    logger.info(f"   - {service}: {total:.2f}% ({BASE_DISCOUNT*100:.0f}% base + {additional*100:.2f}% additional)")
 logger.info("📦 Model will be loaded on first request (lazy loading enabled)")
 
 @app.route('/health', methods=['GET'])
@@ -397,9 +414,10 @@ def predict():
                             subtotal = base_fare + distance_cost + time_cost + booking_fee
                             final_price = max(subtotal, rules['minimum_fare'])
 
-                            # Calculate discounted price
-                            discounted_price = final_price * (1 - PRICE_DISCOUNT)
-                            logger.info(f"[DEBUG] {service_type}: final=${final_price:.2f}, discount={PRICE_DISCOUNT*100:.0f}%, discounted=${discounted_price:.2f}")
+                            # Calculate discounted price with service-specific discount
+                            total_discount = get_total_discount(service_type)
+                            discounted_price = final_price * (1 - total_discount)
+                            logger.info(f"[DEBUG] {service_type}: final=${final_price:.2f}, discount={total_discount*100:.2f}%, discounted=${discounted_price:.2f}")
 
                             breakdown[service_type] = {
                                 'base_fare': round(base_fare, 2),
@@ -497,6 +515,9 @@ def predict():
                             subtotal = base_fare + distance_cost + time_cost + booking_fee
                             final_price = max(subtotal, rules['minimum_fare'])
 
+                            # Get total discount for this service type
+                            total_discount = get_total_discount(service_type)
+
                             service_details[service_type] = {
                                 'base_fare': round(base_fare, 2),
                                 'per_mile_rate': round(rules['per_mile_rate'], 2),
@@ -507,8 +528,8 @@ def predict():
                                 'booking_fee': round(booking_fee, 2),
                                 'subtotal': round(subtotal, 2),
                                 'final_price_before_discount': round(final_price, 2),
-                                'discount_percentage': PRICE_DISCOUNT * 100,
-                                'final_price': round(final_price * (1 - PRICE_DISCOUNT), 2)
+                                'discount_percentage': round(total_discount * 100, 2),
+                                'final_price': round(final_price * (1 - total_discount), 2)
                             }
 
                         response['service_details'] = service_details
